@@ -77,7 +77,16 @@ export function createMarketView(d) {
 
   // ---------- dialog ----------
   // with a recording, his voice runs as one continuous phrase while the text types out (38 letters/s)
-  function say(text) { V.typing = { text, i: 0, acc: 0 }; $('mkSay').textContent = ''; V.talkT = 1; V.voiced = sfx.talk(text.length / 38 + 0.15); }
+  function say(text) {
+    const line = V.typing = { text, i: 0, acc: 0 }; $('mkSay').textContent = ''; V.talkT = 1;
+    V.voiced = sfx.talk(text.length / 38 + 0.15);
+    // his recording is still loading: stay quiet, then speak the rest of this line as soon as it is ready
+    if (!V.voiced && sfx.voiceState === 'loading') sfx.voiceReady.then(() => {
+      if (!V.active || V.typing !== line) return;
+      const left = (line.text.length - line.i) / 38 + 0.15;
+      if (left > 0.35) V.voiced = sfx.talk(left);
+    });
+  }
   function update(dt) {
     if (!V.active) return;
     V.t += dt;
@@ -89,7 +98,7 @@ export function createMarketView(d) {
       // big fat man gibberish: "bla bla, blöl bolob..." one syllable every few letters, pauses on punctuation
       V.sylT -= dt;
       const ch = V.typing.text[V.typing.i - 1] || '';
-      if (V.voiced) { /* the recording is already playing */ }
+      if (V.voiced || sfx.voiceState !== 'none') { /* his recording plays (or is about to): never the synth voice */ }
       else if (/[.,!?…—]/.test(ch)) V.sylT = Math.max(V.sylT, 0.18);
       else if (V.sylT <= 0 && ch.trim()) { const len = sfx.mumble({ pitch: 82 + Math.random() * 22, long: Math.random() < 0.12 }) || 0.14; V.sylT = len + 0.01 + Math.random() * 0.04; }
       $('mkSay').textContent = V.typing.text.slice(0, V.typing.i);
@@ -258,8 +267,8 @@ export function createMarketView(d) {
     d.setMode('market'); buildShop(); show('market'); coins(); renderStory();
   }
   function leave(where) {
-    sfx.talkStop();
-    say(line('mBye')); V.active = false; V.deal = null; putOnCounter(null); hide('market');
+    sfx.talkStop(); V.typing = null; V.voiced = false;
+    V.active = false; V.deal = null; putOnCounter(null); hide('market');
     d.onLeave(where);
   }
   return { enter, story, update, get active() { return V.active; } };

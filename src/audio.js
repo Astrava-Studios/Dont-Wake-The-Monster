@@ -87,12 +87,31 @@ function playAsMedia(sfx) {
   if (sfx.mediaEl.paused) { const p = sfx.mediaEl.play(); if (p && p.catch) p.catch(() => {}); }
 }
 
+// ---------- merchant voice files ----------
+const VOICE_BASE = () => (import.meta.env ? import.meta.env.BASE_URL : '/') + 'sfx/voice/';
+async function fetchBytes(url) {
+  try {
+    const r = await fetch(url); if (!r.ok || (r.headers.get('content-type') || '').includes('text/html')) return null; // dev server answers misses with index.html
+    return await r.arrayBuffer();
+  } catch { return null; }
+}
+// your own recordings: TuccarVoice / mort / mort2…mort5 in any of these formats, all looked up at once
+async function fetchVoiceBytes() {
+  const names = ['TuccarVoice', 'mort', 'mort2', 'mort3', 'mort4', 'mort5'], exts = ['m4a', 'mp3', 'wav', 'ogg', 'webm'];
+  const found = await Promise.all(names.map(async (n) => { for (const e of exts) { const b = await fetchBytes(VOICE_BASE() + n + '.' + e); if (b) return b; } return null; }));
+  return { own: found.filter(Boolean), pack: [] };
+}
+const fetchPackBytes = async () => (await Promise.all(['talk_short', 'talk_medium', 'talk_long', 'talk_player1', 'talk_player2'].map((f) => fetchBytes(VOICE_BASE() + f + '.mp3')))).filter(Boolean);
+
 export class Sfx {
   constructor() {
     this.ctx = null; this.enabled = true; this.musicOn = true;
     this.listener = { x: 0, z: 0, half: 9 }; this.samples = {};
     this.mode = 'calm'; this.intensity = 0; this.muffled = false;
     this.step16 = 0; this.nextT = 0;
+    this.voiceState = 'loading'; // loading | own | pack | none
+    this.voiceReady = new Promise((r) => { this._voiceDone = r; });
+    this.voiceBytes = typeof window !== 'undefined' && typeof fetch !== 'undefined' ? fetchVoiceBytes() : null;
   }
 
   // ---------- graph ----------
@@ -175,19 +194,12 @@ export class Sfx {
   // otherwise the CC-BY pack is used. Recordings are played as continuous phrases (see talk()).
   async loadVoice() {
     try {
-      const base = import.meta.env.BASE_URL + 'sfx/voice/';
-      const get = async (url) => {
-        try {
-          const r = await fetch(url); if (!r.ok || (r.headers.get('content-type') || '').includes('text/html')) return null; // dev server answers misses with index.html
-          return await this.ctx.decodeAudioData(await r.arrayBuffer());
-        } catch { return null; }
-      };
-      const own = [];
-      for (const name of ['TuccarVoice', 'mort', 'mort2', 'mort3', 'mort4', 'mort5']) {
-        let b = null; for (const ext of ['m4a', 'mp3', 'wav', 'ogg', 'webm']) { b = await get(base + name + '.' + ext); if (b) break; }
-        if (b) own.push(b);
-      }
-      const bufs = own.length ? own : (await Promise.all(['talk_short', 'talk_medium', 'talk_long', 'talk_player1', 'talk_player2'].map((f) => get(base + f + '.mp3')))).filter(Boolean);
+      const decode = async (bytes) => { try { return await this.ctx.decodeAudioData(bytes.slice(0)); } catch { return null; } };
+      const got = (await this.voiceBytes) || { own: [], pack: [] };
+      const own = (await Promise.all(got.own.map(decode))).filter(Boolean);
+      // the CC-BY pack is only a fallback when your own recording is missing or cannot be decoded on this device
+      const pack = own.length ? [] : (await Promise.all((got.pack.length ? got.pack : await fetchPackBytes()).map(decode))).filter(Boolean);
+      const bufs = own.length ? own : pack;
       const clips = [];
       for (const raw of bufs) {
         const b = compactSpeech(this.ctx, raw);
@@ -201,7 +213,9 @@ export class Sfx {
         this.voiceInfo = { source: own.length ? 'own' : 'pack', f0, rate: +rate.toFixed(2), phrases: starts.length };
       }
       if (clips.length) this.voice = clips;
-    } catch {}
+      this.voiceState = clips.length ? (own.length ? 'own' : 'pack') : 'none';
+    } catch { this.voiceState = this.voice ? this.voiceState : 'none'; }
+    this._voiceDone(this.voiceState);
   }
   // plays a sample voice; returns true when it fully replaces the synth (false for layered or missing voices)
   sample(name, o = {}) {
