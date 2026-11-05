@@ -67,6 +67,26 @@ export function voiceSyllables(b) {
   return out;
 }
 
+// ---------- iOS ----------
+// iPhone/iPad (iPadOS reports itself as a Mac with touch)
+const IOS = typeof navigator !== 'undefined' && (/iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+// a tiny silent WAV (0.1 s): playing it through an <audio> element makes iOS treat the page as media
+function silentWavUrl() {
+  const n = 800, b = new Uint8Array(44 + n), v = new DataView(b.buffer);
+  const s = (o, t) => { for (let i = 0; i < t.length; i++) b[o + i] = t.charCodeAt(i); };
+  s(0, 'RIFF'); v.setUint32(4, 36 + n, true); s(8, 'WAVE'); s(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, 8000, true); v.setUint32(28, 8000, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true); s(36, 'data'); v.setUint32(40, n, true); b.fill(128, 44);
+  return URL.createObjectURL(new Blob([b], { type: 'audio/wav' }));
+}
+// the ringer (silent) switch mutes Web Audio unless the page plays as media: iOS 17+ has audioSession,
+// older versions switch over when a looping silent <audio> element is playing
+function playAsMedia(sfx) {
+  if (navigator.audioSession) { try { navigator.audioSession.type = 'playback'; } catch {} return; }
+  if (typeof document === 'undefined') return;
+  if (!sfx.mediaEl) { const a = sfx.mediaEl = document.createElement('audio'); a.src = silentWavUrl(); a.loop = true; a.setAttribute('playsinline', ''); a.setAttribute('x-webkit-airplay', 'deny'); }
+  if (sfx.mediaEl.paused) { const p = sfx.mediaEl.play(); if (p && p.catch) p.catch(() => {}); }
+}
+
 export class Sfx {
   constructor() {
     this.ctx = null; this.enabled = true; this.musicOn = true;
@@ -77,9 +97,10 @@ export class Sfx {
 
   // ---------- graph ----------
   init(ctx) {
-    if (this.ctx) { if (this.ctx.state === 'suspended' && !this.bg) this.ctx.resume(); return; }
+    if (this.ctx) { this.unlock(); return; }
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!ctx && !AC) return;
+    if (IOS && !ctx) playAsMedia(this); // before the context exists, so it starts in the media session
     const c = this.ctx = ctx || new AC();
     const len = c.sampleRate * 2; const nb = c.createBuffer(1, len, c.sampleRate); const d = nb.getChannelData(0);
     for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
@@ -108,7 +129,16 @@ export class Sfx {
     const rf = c.createBiquadFilter(); rf.type = 'lowpass'; rf.frequency.value = 220;
     const rg = this.roomTone = c.createGain(); rg.gain.value = 0.05; rt.connect(rf); rf.connect(rg); rg.connect(this.ambBus); rt.start();
     this.nextT = c.currentTime + 0.1;
-    if (!ctx) { this.loadSamples(); this.loadVoice(); }
+    if (!ctx) { this.loadSamples(); this.loadVoice(); this.unlock(); }
+  }
+  // Called on every tap. iOS only starts (or restarts after a phone call: state 'interrupted') a context
+  // inside a real tap, and wants a sound started in that same tap. Cheap once the context is running.
+  unlock() {
+    const c = this.ctx; if (!c || this.bg || !c.resume) return;
+    if (IOS) playAsMedia(this);
+    if (c.state === 'running') return;
+    const p = c.resume(); if (p && p.catch) p.catch(() => {});
+    try { const s = c.createBufferSource(); s.buffer = c.createBuffer(1, 1, 22050); s.connect(c.destination); s.start(0); } catch {}
   }
   impulse(sec, decay, channels = 2) {
     const c = this.ctx, n = Math.floor(c.sampleRate * sec), b = c.createBuffer(channels, n, c.sampleRate);
@@ -426,8 +456,10 @@ export class Sfx {
   // call every frame: mode 'calm' | 'chase' | 'quiet'; intensity 0..1 (how awake the monster is)
   // app in the background: stop every sound (looping room tone too); back in front: carry on
   setBackground(bg) {
-    this.bg = bg; if (!this.ctx) return;
-    const p = bg ? this.ctx.suspend() : this.ctx.resume(); if (p && p.catch) p.catch(() => {});
+    this.bg = bg;
+    if (this.mediaEl) { if (bg) this.mediaEl.pause(); else { const q = this.mediaEl.play(); if (q && q.catch) q.catch(() => {}); } }
+    if (!this.ctx) return;
+    const p = bg ? this.ctx.suspend() : this.ctx.resume(); if (p && p.catch) p.catch(() => {}); // a refused resume is retried on the next tap
   }
   update(dt, { mode = 'calm', intensity = 0, muffled = false } = {}) {
     if (!this.ctx || this.bg) return;

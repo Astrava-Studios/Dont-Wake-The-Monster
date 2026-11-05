@@ -73,6 +73,8 @@ document.addEventListener('pointerdown', (e) => { const b = e.target.closest && 
 const input = new Input($('touch'), $('joy'), $('knob'));
 input.onStart = () => sfx.init();
 document.addEventListener('pointerdown', () => { userTapped = true; sfx.init(); }, { passive: true });
+// iOS Safari only lets audio start on the END of a tap (touchend / click), not on pointerdown: unlock there too
+for (const ev of ['touchend', 'click', 'keydown']) document.addEventListener(ev, () => { userTapped = true; sfx.init(); }, { passive: true, capture: true });
 
 // ---------------- renderer / scene / post ----------------
 const getQualityRatio = () => {
