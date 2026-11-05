@@ -17,6 +17,7 @@ import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import './style.css';
+import { initFit } from './fit.js';
 import { buildMerchant, buildPlayer, buildMonster, buildNest, buildFurniture, buildDuck, buildCat, buildTreasure, buildPowerup, buildDoor, buildWindow, toon, M } from './models.js';
 import { generateLevel, mulberry, MONSTERS } from './level.js';
 import { RULES, applyOverrides } from './rules.js';
@@ -1278,6 +1279,7 @@ function resize() {
   camera.aspect = w / h; camera.fov = w < h ? 56 : 42; camera.updateProjectionMatrix();
 }
 addEventListener('resize', resize); resize();
+initFit();
 
 // hold-to-take: on-screen button (touch) or E / Enter (keyboard)
 let takeHeld = false;
