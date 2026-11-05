@@ -1,0 +1,26 @@
+{
+  "name": "dont-wake-the-monster",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "preview": "vite preview --host",
+    "test": "node test/sim.test.mjs && node test/promises.test.mjs && node test/market.test.mjs && node test/run.test.mjs && node test/hideout.test.mjs && node test/physics.test.mjs",
+    "balance": "node scripts/balance.mjs 40",
+    "economy": "node scripts/economy.mjs 40 45"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/cli": "^8.6.0",
+    "@capacitor/core": "^8.6.0",
+    "@capacitor/status-bar": "^8.0.4",
+    "@fontsource-variable/nunito": "^5.3.0",
+    "three": "^0.170.0"
+  },
+  "devDependencies": {
+    "vite": "^6.0.7"
+  }
+}

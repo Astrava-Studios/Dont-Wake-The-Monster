@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Don\'t Wake the Monster</string>
+    <string name="title_activity_main">Don\'t Wake the Monster</string>
+    <string name="package_name">com.fariz.dontwakethemonster</string>
+    <string name="custom_url_scheme">com.fariz.dontwakethemonster</string>
+</resources>

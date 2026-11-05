@@ -1,0 +1,43 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "game",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5173",
+        "--strictPort"
+      ],
+      "port": 5173
+    },
+    {
+      "name": "explorer",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "Assets/goat-game-creator/explorer/server.mjs",
+        "--dir",
+        "Assets",
+        "--port",
+        "4848"
+      ],
+      "port": 4848
+    },
+    {
+      "name": "game2",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5174",
+        "--strictPort"
+      ],
+      "port": 5174
+    }
+  ]
+}

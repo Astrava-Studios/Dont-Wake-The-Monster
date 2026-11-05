@@ -1,0 +1,5 @@
+Merchant gibberish voice
+"PlayerTalkingSFX pack" by Colodical
+https://opengameart.org/content/playertalkingsfx-pack
+License: CC-BY 3.0 (https://creativecommons.org/licenses/by/3.0/)
+Changes: files renamed; sliced into syllables, pitched down ~15 semitones, with added growl, saturation and EQ.

@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#1d1530" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <link rel="icon" type="image/png" href="/icon.png" />
+  <link rel="apple-touch-icon" href="/icon.png" />
+  <title>Don't Wake the Monster</title>
+  </head>
+<body>
+  <div id="app">
+    <canvas id="game"></canvas>
+    <div id="vignette"></div>
+    <div id="flash"></div>
+    <div id="touch"></div>
+    <div id="joy"><div id="joyInner"></div><div id="knob"></div></div>
+    <div id="floaters"></div>
+
+    <!-- Dikey ekran uyarısı -->
+    <div id="rotate-hint">
+      <div class="rotate-phone">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+          <line x1="12" y1="18" x2="12.01" y2="18"></line>
+        </svg>
+      </div>
+      <p>Telefonu yan çevir</p>
+    </div>
+
+    <!-- HUD: icons + numbers only -->
+    <div id="hud" class="hidden">
+      <div class="hudRow">
+        <div id="nightBadge" class="kround yellow"><span class="num" id="nightNum">1</span></div>
+        <div id="wakeWrap">
+          <div id="wakeFace"></div>
+          <div id="wakeBar" class="kslider"><div id="wakeFill" class="kfill green"></div></div>
+        </div>
+        <button id="pauseBtn" class="kround grey small" data-i18n-aria="pause"><i data-icon="pause"></i></button>
+      </div>
+      <div class="hudRow second">
+        <div id="dawn" data-i18n-title="dawnLeft"><div id="dawnRing"></div><span id="dawnIcon"></span><span id="timeTxt" class="num"></span></div>
+        <div id="modIcons"></div>
+        <div id="relicIcons"></div>
+        <div id="lootPill" class="kpanel dark"><i data-icon="bag"></i><span class="num" id="lootTxt">0</span></div>
+      </div>
+      <div id="statusTag"></div>
+      <div id="monArrow" class="hidden"><div class="ring"><i class="ptr"></i></div><div class="mface" id="monArrowFace"></div></div>
+      <div id="actions">
+        <div id="kitSlots"></div>
+        <button id="takeBtn" class="kround green act hidden" data-i18n-aria="take"><i class="takeRing"></i><i data-icon="hand"></i></button>
+        <button id="lullBtn" class="kround blue act" data-i18n-aria="lullaby"><i data-icon="note"></i><span class="badge num" id="lullCount">0</span></button>
+        <button id="dropBtn" class="kround red act" data-i18n-aria="drop"><i data-icon="bag"></i></button>
+      </div>
+    </div>
+
+    <div id="banner"></div>
+    <pre id="debuglog" hidden></pre>
+
+    <!-- MENU -->
+    <div id="menu" class="screen">
+      <div class="title">
+        <div class="t1">DON'T WAKE</div>
+        <div class="t2">THE MONSTER</div>
+      </div>
+      <div class="stats" id="menuStats"></div>
+      <button class="kbtn yellow big" id="playBtn"><i data-icon="play"></i><span data-i18n="play"></span></button>
+      <div class="rowBtns">
+        <button class="kround blue" id="shopBtn" data-i18n-aria="skills"><i data-icon="tree"></i></button>
+        <button class="kround yellow" id="marketBtn" data-i18n-aria="market"><i data-icon="stall"></i><span class="badge num hidden" id="stashBadge">0</span></button>
+        <button class="kround blue" id="hideoutBtn" data-i18n-aria="hideout"><i data-icon="tools"></i></button>
+        <button class="kround yellow" id="wardrobeBtn" data-i18n-aria="wardrobe"><i data-icon="hanger"></i></button>
+        <button class="kround purple" id="bestiaryBtn" data-i18n-aria="bestiary"><i data-icon="shelf"></i></button>
+        <button class="kround green" id="howBtn" data-i18n-aria="help"><i data-icon="help"></i></button>
+        <button class="kround grey" id="settingsBtn" data-i18n-aria="settings"><i data-icon="gear"></i></button>
+      </div>
+    </div>
+
+    <!-- HOW TO -->
+    <div id="how" class="screen hidden">
+      <div class="kcard">
+        <h2 data-i18n="howTitle"></h2>
+        <div class="howGrid">
+          <div><b data-icon="paw"></b><span data-i18n-html="how1"></span></div>
+          <div><b data-icon="zzz"></b><span data-i18n-html="how2"></span></div>
+          <div><b data-icon="eye"></b><span data-i18n-html="how3"></span></div>
+          <div><b data-icon="door"></b><span data-i18n-html="how4"></span></div>
+        </div>
+        <button class="kbtn green" data-close="how" data-i18n="ok"></button>
+      </div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div id="settings" class="screen hidden">
+      <div class="kcard">
+        <h2 data-i18n="setTitle"></h2>
+        <div class="setList">
+          <label class="setRow"><i data-icon="note"></i><span data-i18n="setMusic"></span><input type="range" id="setMusic" min="0" max="100" step="5" /><b class="num" id="setMusicV"></b></label>
+          <label class="setRow"><i data-icon="speaker"></i><span data-i18n="setSfx"></span><input type="range" id="setSfx" min="0" max="100" step="5" /><b class="num" id="setSfxV"></b></label>
+          <label class="setRow"><i data-icon="zoom"></i><span data-i18n="setZoom"></span><input type="range" id="setZoom" min="0" max="100" step="5" /><b class="small" id="setZoomV"></b></label>
+          <button class="setRow toggle" id="setVibrate"><i data-icon="vibrate"></i><span data-i18n="setVibrate"></span><em class="sw"></em></button>
+          <div class="setRow quality"><i data-icon="sparkles"></i><span data-i18n="setQuality"></span><div class="qualityBtns" id="qualityBtns"></div></div>
+          <div class="setRow lang"><i data-icon="globe"></i><span data-i18n="setLang"></span><div class="langBtns" id="langBtns"></div></div>
+        </div>
+        <button class="kbtn green" id="settingsClose" data-i18n="ok"></button>
+      </div>
+    </div>
+
+    <!-- NIGHT CARD: night number, monster, modifiers (if any), start -->
+    <div id="nightCard" class="screen hidden">
+      <div class="kcard nc">
+        <div class="ncTopRow">
+          <div class="nightNum"><i data-icon="moon"></i><span class="num" id="ncNight">1</span></div>
+          <div class="ncMonster"><div id="ncFace"></div><div class="mName" id="ncMonster"></div></div>
+          <div id="ncRent"></div>
+        </div>
+        <div class="ncMidRow">
+          <div id="ncHouse"></div>
+          <div id="ncMods"></div>
+          <div id="ncRelics"></div>
+          <div id="ncKit"></div>
+        </div>
+        <button class="kbtn green big" id="sneakBtn"><i data-icon="play"></i><span data-i18n="start"></span></button>
+      </div>
+    </div>
+
+    <!-- RESULT -->
+    <div id="result" class="screen hidden">
+      <div class="kcard">
+        <div class="resTitle" id="resTitle"></div>
+        <div class="stars" id="resStars"></div>
+        <div id="resLines"></div>
+        <div class="resItems" id="resItems"></div>
+        <div class="resTotal" id="resTotal"></div>
+        <div id="resBtns"></div>
+      </div>
+    </div>
+
+    <!-- SHOP -->
+    <div id="shop" class="screen hidden">
+      <div class="kcard wide">
+        <div class="cardHead"><h2 data-i18n="skills"></h2><div class="kpanel dark"><span class="coin"></span><span class="num" id="shopCoins">0</span></div></div>
+        <div id="shopList"></div>
+        <button class="kbtn blue" data-close="shop" data-i18n="back"></button>
+      </div>
+    </div>
+
+    <!-- BLACK MARKET: 3D shop behind, merchant speech bubble, stash / haggling sheet -->
+    <div id="market" class="screen hidden">
+      <div class="mkTop"><div class="mkTitle"><i data-icon="stall"></i><span data-i18n="market"></span></div><div class="kpanel dark"><span class="coin"></span><span class="num" id="mkCoins">0</span></div></div>
+      <div class="bubble"><b data-i18n="merchant"></b><p id="mkSay"></p></div>
+      <div class="mkSpacer"></div>
+      <div class="kcard mkSheet" id="mkSheet"></div>
+    </div>
+
+    <!-- WARDROBE: the thief up close, costume pieces + lantern looks -->
+    <div id="wardrobe" class="screen hidden">
+      <div class="mkTop"><div class="mkTitle"><i data-icon="hanger"></i><span data-i18n="wardrobe"></span></div><div class="kpanel dark"><span class="coin"></span><span class="num" id="wdCoins">0</span></div></div>
+      <div class="mkSpacer"></div>
+      <div class="kcard mkSheet" id="wdSheet"></div>
+    </div>
+    <!-- HIDEOUT: upgrades + decor -->
+    <div id="hideoutUI" class="screen hidden">
+      <div class="mkTop"><div class="mkTitle"><i data-icon="tools"></i><span data-i18n="hideout"></span></div><div class="kpanel dark"><span class="coin"></span><span class="num" id="hoCoins">0</span></div></div>
+      <div class="mkSpacer"></div>
+      <div class="kcard mkSheet" id="hoSheet"></div>
+    </div>
+    <!-- BESTIARY / MUSEUM: Thief's Handbook & Trophy Catalog -->
+    <div id="bestiaryUI" class="screen hidden">
+      <div class="mkTop"><div class="mkTitle"><i data-icon="shelf"></i><span data-i18n="bestiary"></span></div><div class="kpanel dark"><span class="coin"></span><span class="num" id="bmCoins">0</span></div></div>
+      <div class="mkSpacer"></div>
+      <div class="kcard mkSheet" id="bmSheet"></div>
+    </div>
+
+    <!-- PAUSE -->
+    <div id="pause" class="screen hidden">
+      <div class="kcard">
+        <h2 data-i18n="paused"></h2>
+        <button class="kbtn green big" id="resumeBtn"><i data-icon="play"></i><span data-i18n="resume"></span></button>
+        <div class="rowBtns">
+          <button class="kround grey" id="pauseSettings" data-i18n-aria="settings"><i data-icon="gear"></i></button>
+          <button class="kround red" id="quitBtn" data-i18n-aria="quit"><i data-icon="home"></i></button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

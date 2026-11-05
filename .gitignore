@@ -1,0 +1,8 @@
+node_modules
+dist
+shots
+# raw asset packs (469 MB); the game only uses the copies in public/
+Assets/
+# built Android packages
+*.apk
+*.aab
