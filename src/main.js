@@ -1312,26 +1312,6 @@ function audioAmbience(dt) {
   if (left < 12 && Math.random() < dt * 0.8) sfx.bird();
   if (S.state === 'play' && Math.random() < dt / 18) sfx.houseCreak();
 }
-// arrow at the screen edge pointing to the monster when it is out of view
-const arrowEl = $('monArrow'), arrowRing = arrowEl.querySelector('.ring');
-function updateMonsterArrow() {
-  if (mode !== 'play' || !S || !MO) { arrowEl.classList.add('hidden'); return; }
-  MO.head.getWorldPosition(tmpV); tmpV.project(camera);
-  let x = tmpV.x, y = tmpV.y; const behind = tmpV.z > 1;
-  if (!behind && Math.abs(x) < 0.9 && y < 0.72 && y > -0.8) { arrowEl.classList.add('hidden'); return; }
-  if (behind) { x = -x; y = -y; }
-  const W = innerWidth, H = innerHeight, cx = W / 2, cy = H / 2;
-  const dx = x * cx, dy = -y * cy; const len = Math.hypot(dx, dy) || 1;
-  const mx = 40, top = 150, bot = H - 140; // keep clear of the HUD and the action buttons
-  const tx = dx > 0 ? (W - mx - cx) / dx : dx < 0 ? (mx - cx) / dx : Infinity;
-  const ty = dy > 0 ? (bot - cy) / dy : dy < 0 ? (top - cy) / dy : Infinity;
-  const k = Math.min(tx, ty);
-  arrowEl.style.transform = `translate(${cx + dx * k}px, ${cy + dy * k}px)`;
-  arrowRing.style.transform = `rotate(${Math.atan2(dy, dx)}rad)`;
-  arrowEl.classList.toggle('chase', ['chase', 'wakeup'].includes(S.state));
-  const mood = hudCache.face || ''; if (arrowEl.dataset.mood !== mood) { arrowEl.dataset.mood = mood; $('monArrowFace').innerHTML = $('wakeFace').innerHTML; }
-  arrowEl.classList.remove('hidden');
-}
 let last = performance.now(), hudT = 0;
 function frame(now) {
   requestAnimationFrame(frame);
@@ -1348,7 +1328,7 @@ function frame(now) {
   } else sfx.update(dt, { mode: ['menu', 'market', 'wardrobe', 'hideout'].includes(mode) ? 'calm' : 'quiet' });
   marketView.update(dt);
   input.enabled = mode === 'play' && !paused;
-  animate(dt); updateCamera(dt); updateFloaters(dt); updateMonsterArrow();
+  animate(dt); updateCamera(dt); updateFloaters(dt);
   if (composer) composer.render(dt);
   else renderer.render(scene, camera);
 }
