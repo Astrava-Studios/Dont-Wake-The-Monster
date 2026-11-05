@@ -130,7 +130,6 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 /* ---------- screens ---------- */
 .screen { position: absolute; inset: 0; z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center;
   padding: calc(env(safe-area-inset-top) + 16px) 16px calc(env(safe-area-inset-bottom) + 16px); gap: 14px; overflow: hidden; touch-action: none; }
-#menu { background: radial-gradient(ellipse at center, rgba(20,12,40,.25), rgba(20,12,40,.75)); justify-content: center; gap: 18px; }
 #how, #nightCard, #result, #shop, #pause, #settings { background: rgba(15,8,30,.5); }
 .title { text-align: center; margin-bottom: calc(var(--vh, 1vh) * 4); font-family: 'KenneyFuture', sans-serif; line-height: 1; }
 .t1 { font-size: clamp(34px, 10vw, 62px); color: #ffcf3f; text-shadow: 0 5px 0 #b05a2a, 0 10px 24px rgba(0,0,0,.5); }
@@ -201,21 +200,6 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
     touch-action: none !important;
     overscroll-behavior: none !important;
   }
-
-  /* Menu */
-  #menu {
-    gap: 8px;
-    padding: calc(env(safe-area-inset-top) + 6px) 16px calc(env(safe-area-inset-bottom) + 8px);
-    justify-content: center;
-    overflow: hidden !important;
-  }
-  #menu .title { margin-bottom: 2px; margin-top: 0; }
-  #menu .t1 { font-size: 26px; text-shadow: 0 3px 0 #b05a2a, 0 6px 12px rgba(0,0,0,.5); }
-  #menu .t2 { font-size: 18px; margin-top: 2px; text-shadow: 0 3px 0 #4b2e9a, 0 6px 12px rgba(0,0,0,.5); }
-  #menu #playBtn { min-width: 180px; height: 46px; font-size: 19px; border-width: 8px 8px 12px 8px; }
-  #menu .stats { gap: 6px; font-size: 13px; }
-  #menu .rowBtns { gap: 8px; }
-  #menu .rowBtns .kround { width: 42px; height: 42px; font-size: 17px; }
 
   /* Night Card */
   .kcard.nc {
@@ -978,9 +962,52 @@ input[type=range]::-moz-range-thumb { width: 30px; height: 30px; border: none; b
 .fine { margin: 0; font-size: 11.5px; color: var(--ink2); display: inline-flex; align-items: center; gap: 4px; } .fine .i { width: 14px; height: 14px; }
 .goodRow small .i { width: 12px; height: 12px; vertical-align: -2px; color: #b02a37; }
 .rl.bad { color: #b02a37; font-weight: 700; font-size: 13px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 4px; } .rl.bad .i { width: 16px; height: 16px; }
-#menu .rowBtns { flex-wrap: wrap; justify-content: center; max-width: 340px; }
-/* menu over the hideout: keep the title + buttons in the top half so the thief stands free below */
-@media (orientation: portrait) { #menu { justify-content: flex-start; padding-top: calc(env(safe-area-inset-top) + calc(var(--vh, 1vh) * 9)); } }
+/* ---------- main menu ----------
+   Corners, not a pile in the middle: stats + help/settings along the top, the title under them,
+   the hideout scene (and the thief) free in the middle, labelled nav buttons bottom-left, Play bottom-right. */
+#menu { align-items: stretch; justify-content: flex-start; gap: 0;
+  padding: calc(env(safe-area-inset-top) + 14px) calc(env(safe-area-inset-right) + 18px) calc(env(safe-area-inset-bottom) + 16px) calc(env(safe-area-inset-left) + 18px);
+  background: linear-gradient(to bottom, rgba(20,12,40,.6), rgba(20,12,40,0) 32%, rgba(20,12,40,0) 62%, rgba(20,12,40,.65)); }
+#menu .menuTop { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+#menu .menuCorner { display: flex; gap: 8px; }
+#menu .title { margin: calc(var(--vh, 1vh) * 1.5) 0 0; }
+#menu .t1 { font-size: clamp(26px, calc(var(--vh, 1vh) * 8), 64px); }
+#menu .t2 { font-size: clamp(18px, calc(var(--vh, 1vh) * 5.4), 44px); margin-top: calc(var(--vh, 1vh) * .6); }
+#menu .menuGap { flex: 1; min-height: 8px; }
+#menu .menuBottom { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
+#menu #playBtn { min-width: 240px; }
+.menuNav { display: flex; gap: 10px; }
+.navBtn { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 78px; }
+.navBtn .kround { pointer-events: none; }
+.navBtn:active .kround { transform: translateY(3px) scale(.97); filter: brightness(.95); }
+.navBtn .lbl { font-size: 13px; font-weight: 800; line-height: 1.1; color: #fff; white-space: nowrap;
+  text-shadow: 0 1px 0 rgba(0,0,0,.7), 0 2px 6px rgba(0,0,0,.7); }
+/* short landscape screens (phones) */
+@media (orientation: landscape) and (max-height: 500px) {
+  #menu { padding: calc(env(safe-area-inset-top) + 8px) calc(env(safe-area-inset-right) + 14px) calc(env(safe-area-inset-bottom) + 10px) calc(env(safe-area-inset-left) + 14px); }
+  #menu .kpanel { height: 32px; font-size: 14px; padding: 0 8px; }
+  #menu .kpanel .coin { width: 18px; height: 18px; }
+  #menu .menuTop .kround { width: 38px; height: 38px; font-size: 16px; }
+  .menuNav { gap: 6px; }
+  .navBtn { width: 62px; gap: 2px; }
+  .navBtn .kround { width: 44px; height: 44px; font-size: 18px; }
+  .navBtn .lbl { font-size: 11px; }
+  #menu #playBtn { min-width: 180px; height: 54px; font-size: 21px; border-width: 9px 9px 13px 9px; }
+}
+/* big desktop screens */
+@media (orientation: landscape) and (min-height: 820px) {
+  .menuNav { gap: 14px; }
+  .navBtn { width: 90px; }
+  .navBtn .kround { width: 68px; height: 68px; font-size: 28px; }
+  .navBtn .lbl { font-size: 15px; }
+  #menu #playBtn { min-width: 280px; height: 78px; font-size: 28px; }
+}
+/* tall/narrow windows: nav row centred, Play full width under it */
+@media (orientation: portrait) {
+  #menu .menuBottom { flex-direction: column; align-items: stretch; gap: 14px; }
+  .menuNav { justify-content: center; flex-wrap: wrap; }
+  #menu #playBtn { min-width: 0; width: 100%; }
+}
 
 /* night card: which house */
 #ncHouse { display: flex; gap: 8px; justify-content: center; }

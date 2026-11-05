@@ -11,6 +11,7 @@ export const LANGS = [
 
 const D = {
   en: {
+    mSkills: 'Skills', mHideout: 'Hideout', mMarket: 'Market', mWardrobe: 'Wardrobe', mBook: 'Handbook',
     play: 'Play', loading: 'Loading… {p}%', ok: 'OK', back: 'Back', start: 'Start', resume: 'Resume',
     shop: 'Shop', help: 'How to play', settings: 'Settings', pause: 'Pause', quit: 'Give up', paused: 'Paused',
     lullaby: 'Lullaby', drop: 'Drop', dawnLeft: 'Time until dawn', bestNight: 'Best night',
@@ -31,6 +32,7 @@ const D = {
     escaped: 'Escaped!', caught: 'Caught!', again: 'Again',
   },
   zh: {
+    mSkills: '技能', mHideout: '藏身处', mMarket: '黑市', mWardrobe: '衣柜', mBook: '秘典',
     play: '开始', loading: '加载中… {p}%', ok: '好的', back: '返回', start: '出发', resume: '继续',
     shop: '商店', help: '玩法', settings: '设置', pause: '暂停', quit: '放弃', paused: '已暂停',
     lullaby: '摇篮曲', drop: '丢下', dawnLeft: '距天亮', bestNight: '最佳夜晚',
@@ -48,6 +50,7 @@ const D = {
     escaped: '逃出来了！', caught: '被抓住了！', again: '再来',
   },
   tr: {
+    mSkills: 'Yetenek', mHideout: 'Sığınak', mMarket: 'Karaborsa', mWardrobe: 'Gardırop', mBook: 'El Kitabı',
     play: 'Oyna', loading: 'Yükleniyor… {p}%', ok: 'Tamam', back: 'Geri', start: 'Başla', resume: 'Devam',
     shop: 'Dükkan', help: 'Nasıl oynanır', settings: 'Ayarlar', pause: 'Duraklat', quit: 'Pes et', paused: 'Durdu',
     lullaby: 'Ninni', drop: 'Bırak', dawnLeft: 'Şafağa kalan', bestNight: 'En iyi gece',
@@ -65,6 +68,7 @@ const D = {
     escaped: 'Kaçtın!', caught: 'Yakalandın!', again: 'Tekrar',
   },
   ru: {
+    mSkills: 'Навыки', mHideout: 'Убежище', mMarket: 'Рынок', mWardrobe: 'Гардероб', mBook: 'Справочник',
     play: 'Играть', loading: 'Загрузка… {p}%', ok: 'ОК', back: 'Назад', start: 'Начать', resume: 'Продолжить',
     shop: 'Магазин', help: 'Как играть', settings: 'Настройки', pause: 'Пауза', quit: 'Сдаться', paused: 'Пауза',
     lullaby: 'Колыбельная', drop: 'Бросить', dawnLeft: 'До рассвета', bestNight: 'Лучшая ночь',
