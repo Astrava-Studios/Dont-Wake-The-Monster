@@ -57,7 +57,7 @@ t('Pirate set: the merchant pays more', () => {
   assert.ok(Math.abs(merchantMax(it, { pay: full('pirate').pay }) / merchantMax(it, {}) - (1 + bonusPercent('pirate') / 100)) < 1e-9);
 });
 t('Cat set: takes an item faster', () => {
-  const frames = (bonus) => { const S = sim(bonus); const it = S.treasures[0]; S.player.x = it.x; S.player.z = it.z; let k = 0; while (it.alive && k++ < 600) { S.wake = 0; step(S, 1 / 30, { x: 0, y: 0, take: true }); } return k; };
+  const frames = (bonus) => { const S = sim(bonus); const it = S.treasures.find((x) => !x.onBed); S.player.x = it.x; S.player.z = it.z; let k = 0; while (it.alive && k++ < 600) { S.wake = 0; step(S, 1 / 30, { x: 0, y: 0, take: true }); } return k; };
   assert.ok(frames(full('cat')) < frames({}));
 });
 t('Angel set: the wake meter falls faster when still', () => {

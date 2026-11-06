@@ -16,8 +16,9 @@ import './style.css';
 import { initFit } from './fit.js';
 import { buildMerchant, buildPlayer, buildMonster, buildNest, buildFurniture, buildDuck, buildCat, buildTreasure, buildPowerup, buildDoor, buildWindow, toon, M } from './models.js';
 import { generateLevel, mulberry, MONSTERS } from './level.js';
+import { createTutorial, tutorialStep, STEPS as TUT_STEPS } from './tutorial.js';
 import { RULES, applyOverrides } from './rules.js';
-import { createSim, step, dropLoot, useLullaby, useItem, nightResult, weightFactor, addNoise } from './sim.js';
+import { createSim, step, dropLoot, useLullaby, useItem, nightResult, weightFactor, addNoise, scream, bedEmpty, ACTIVE } from './sim.js';
 import { makeBody } from './physics.js';
 import { rentAmount, rentDueNow, nightsToRent, canPayRent, payRent, packKit, unpackKit, endRun } from './run.js';
 import { createMarketView } from './marketView.js';
@@ -372,9 +373,10 @@ function addGlow(parent, color, size) {
 }
 function addTreasureView(t, delay = 0) {
   const g = AS.treasure(t.kind) || buildTreasure(t.kind); g.position.set(t.x, 0, t.z); g.rotation.y = Math.random() * 6; world.add(g);
+  const y0 = t.onBed ? 0.85 : 0.05; // the crown lies on the bed's soft rim
   if (t.kind !== 'chest') addGlow(g, t.kind === 'gem' ? '#ffffff' : '#ffd65a', t.kind === 'crown' ? 2.2 : 1.3);
   g.scale.setScalar(0.001);
-  props.treasures.set(t.id, { g, kind: t.kind, bob: Math.random() * 6, spawnAt: time + delay, fly: null, base: 1 });
+  props.treasures.set(t.id, { g, kind: t.kind, bob: Math.random() * 6, spawnAt: time + delay, fly: null, base: 1, y0 });
 }
 const monsterModel = (type) => buildHornbeast(type, AS.hornbeastMesh()) || buildMonster(type);
 function makeMonster(type, home = { x: L.nest.x, z: L.nest.z, yaw: 0 }) {
@@ -392,7 +394,7 @@ function buildNightWorld() { buildWorld(S.L, S); setDarkZones(S.L.darkZones); pa
 function newNight(seedOverride) {
   const seed = seedOverride ?? (Q.has('seed') && run.night === 1 ? +Q.get('seed') : (Math.random() * 1e9) | 0);
   gov.nextNight(); // a look change (shader recompile) only ever happens here, while the room is being built anyway
-  S = makeSim(seed);
+  S = makeSim(seed); tutReset();
   buildNightWorld();
   bot = createBot({ greed: 9 });
   player.group.visible = true;
@@ -561,7 +563,77 @@ function monsterGauges(m) {
   const dots = (n) => `<span class="dots">${[0, 1, 2].map((k) => `<u class="${k < n ? 'f' : ''}"></u>`).join('')}</span>`;
   return [['ear', m.hearing], ['zzz', m.snoreLen], ['eye', m.peekRate], ['run', m.speed]].map(([i, v]) => `<span>${icon(i)} ${dots(lv(v))}</span>`).join('');
 }
-function hint(key, text) { if (save.hints[key]) return; save.hints[key] = 1; writeSave(save); banner(text, 2.2); }
+// ---------------- scream tutorial ----------------
+// Until the crown has once been stolen this way: an intro card (game paused) when the player first gets near the bed
+// (or has some loot, or after 25 s), then a step card at the top + a bouncing marker over the next target.
+// It slows the search down a little; if it goes wrong the card says why and it runs again next night.
+const TUT_ICON = { crown: 'i_crown', away: 'run', scream: 'shout', hide: 'hide', grab: 'hand', exit: 'door' };
+let tut = null, tutMarker = null, tutHideT = 0;
+function tutReset() { tut = null; tutHideT = 0; $('tutCard').classList.add('hidden'); $('screamBtn').classList.remove('tutPulse'); if (tutMarker) tutMarker.visible = false; }
+function tutWanted() { return !save.hints.tutScream && !autoplay && !Q.has('sim') && !Q.has('demo') && S.screams > 0 && S.treasures.some((x) => x.onBed && x.alive); }
+function tutorialTick() {
+  if (!S || mode !== 'play') return;
+  if (!tut) {
+    if (!tutWanted() || S.state !== 'play') return;
+    const p = S.player, near = Math.hypot(p.x - L.nest.x, p.z - L.nest.z) < L.nest.r + 3.2;
+    if (near || S.bag.length || S.t > 25) tutBegin();
+    return;
+  }
+  if (!tut.started) return;
+  if (tut.result) { tutHideT -= 0.05; if (tutHideT <= 0) { tutReset(); tut = { started: false, over: true }; } return; }
+  tutorialStep(tut, S);
+  if (tut.step === 'exit' && !save.hints.tutScream) { save.hints.tutScream = 1; writeSave(save); } // the crown is in the bag: learned
+  if (tut.changed) tutCard();
+  $('screamBtn').classList.toggle('tutPulse', tut.step === 'scream' && !tut.result);
+}
+function tutBegin() {
+  tut = createTutorial(); tut.started = false;
+  if (save.hints.tutSeen) return tutStart(); // seen the intro before: straight to the steps
+  paused = true; input.release(); show('tutIntro');
+}
+function tutStart() {
+  hide('tutIntro'); paused = false; save.hints.tutSeen = 1; writeSave(save);
+  tut.started = true; S.searchMult = 1.6; tutorialStep(tut, S); tutCard();
+}
+function tutSkip() { hide('tutIntro'); paused = false; save.hints.tutScream = 1; save.hints.tutSeen = 1; writeSave(save); tutReset(); tut = { started: false, over: true }; }
+function tutCard() {
+  const c = $('tutCard'), r = tut.result; c.classList.remove('hidden', 'good', 'bad');
+  const dots = TUT_STEPS.map((s, i) => '<u class="' + (i < tut.i || r === 'done' ? 'f' : i === tut.i && !r ? 'cur' : '') + '"></u>').join('');
+  let ic, title, text;
+  if (r) {
+    ic = r === 'done' ? 'trophy' : r === 'spotted' ? 'eye' : 'bed';
+    title = t(r === 'done' ? 'tutDoneT' : r === 'spotted' ? 'tutSpottedT' : 'tutLateT'); text = t(r === 'done' ? 'tutDoneD' : r === 'spotted' ? 'tutSpottedD' : 'tutLateD');
+    c.classList.add(r === 'done' ? 'good' : 'bad'); tutHideT = r === 'done' ? 4 : 6;
+    if (r === 'done') sfx.buy(); else sfx.deny();
+  } else {
+    ic = TUT_ICON[tut.step]; title = t('tutT_' + tut.step);
+    text = t('tutD_' + tut.step + (tut.step === 'hide' && tut.hide ? '_' + tut.hide.kind : ''));
+    if (tut.i > 0) sfx.tone(1320, 0.12, { type: 'triangle', vol: 0.08 });
+  }
+  const num = r ? '' : '<span class="num">' + (tut.i + 1) + '/' + TUT_STEPS.length + '</span> ';
+  c.innerHTML = '<div class="tutTop"><span class="tutTag">' + icon('shout') + t('tutTag') + '</span><span class="tutDots">' + dots + '</span></div>'
+    + '<div class="tutRow"><b>' + icon(ic) + '</b><div><div class="tutTitle">' + num + title + '</div><div class="tutText">' + text + '</div></div></div>';
+  c.classList.remove('pop'); void c.offsetWidth; c.classList.add('pop');
+}
+// a bouncing arrow + ring over the next target
+function tutMarkerTick() {
+  const tg = tut && tut.started && !tut.result ? tut.target : null;
+  if (!tg) { if (tutMarker) tutMarker.visible = false; return; }
+  if (!tutMarker || tutMarker.parent !== world) {
+    tutMarker = new THREE.Group();
+    const mat = new THREE.MeshBasicMaterial({ color: '#ffd65a', transparent: true, opacity: 0.95, depthTest: false });
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.5, 14), mat); cone.rotation.x = Math.PI; cone.renderOrder = 10; tutMarker.add(cone); tutMarker.userData.cone = cone;
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.66, 32), new THREE.MeshBasicMaterial({ color: '#ffd65a', transparent: true, opacity: 0.7, side: THREE.DoubleSide, depthWrite: false }));
+    ring.rotation.x = -Math.PI / 2; ring.position.y = 0.04; tutMarker.add(ring); tutMarker.userData.ring = ring;
+    world.add(tutMarker);
+  }
+  tutMarker.visible = true; tutMarker.position.set(tg.x, 0, tg.z);
+  const high = tut.step === 'crown' || tut.step === 'grab' ? 0.5 : 0; // the crown lies up on the bed
+  tutMarker.userData.cone.position.y = 1.7 + high + Math.abs(Math.sin(time * 4)) * 0.3;
+  const k = 1 + (time * 1.5 % 1) * 0.5; tutMarker.userData.ring.scale.set(k, k, k); tutMarker.userData.ring.material.opacity = 0.8 * (1.5 - k) * 2;
+  tutMarker.userData.ring.visible = !high;
+}
+function hint(key, text, dur = 2.2) { if (save.hints[key]) return; save.hints[key] = 1; writeSave(save); banner(text, dur); }
 
 // ---------------- sim events -> juice + sound ----------------
 const tmpV = new THREE.Vector3(), tmpV2 = new THREE.Vector3(), tmpC = new THREE.Color();
@@ -643,13 +715,19 @@ function handleEvents(instant = false) {
       case 'heart': sfx.heart(); break;
       case 'alarm': sfx.alarm(); break;
       case 'wake':
-        banner(t(e.reason === 'dawn' ? 'dawnWake' : 'wake'), 1.6);
+        banner(t(e.reason === 'dawn' ? 'dawnWake' : e.reason === 'scream' ? 'screamWake' : e.reason === 'bed' ? 'bedWake' : 'wake'), 1.6);
         { const rx = S.monster.x, rz = S.monster.z; setTimeout(() => sfx.roar(rx, rz), e.reason === 'dawn' ? 500 : 0); }
         shake = 0.7; flash = 1; grade.uniforms.flashCol.value.set(1, 0.2, 0.2); vibrate([80, 40, 160]);
         MO.bubble.visible = false; burst(MO.bubble.getWorldPosition(tmpV), '#bfe9ff', 8);
         MO.jolt = 1; spawnRing(MO.group.position.x, MO.group.position.z, 30, '#ff5a5a');
         break;
       case 'chase': hint('chase', t('hintChase')); break;
+      case 'scream':
+        sfx.scream(e.x, e.z); spawnRing(e.x, e.z, 40, '#ffd65a'); shake = Math.max(shake, 0.35); vibrate([60, 30, 60]);
+        floater('AAAH!', new THREE.Vector3(e.x, 1.6, e.z), '#ffd65a');
+        break;
+      case 'search': sfx.hmm(e.x, e.z); break;
+      case 'spotted': banner(t('spotted'), 1.4); sfx.roar(e.x, e.z); shake = 0.5; vibrate([80, 40, 120]); break;
       case 'pounce': MO.jolt = 0.7; shake = Math.max(shake, 0.25); sfx.stomp(e.x, e.z); sfx.hmm(e.x, e.z); vibrate(40); break;
       case 'giveUp': sfx.yawn(S.monster.x, S.monster.z);  break;
       case 'asleep': MO.bubble.visible = true;  MO.stars.visible = false; break;
@@ -693,7 +771,7 @@ function finishNight() {
     $('resTitle').textContent = t('escaped');
     $('resItems').innerHTML = r.items.filter((it) => !noRoom.includes(it)).map((it, i) => chip(it, false, i)).join('') + (noRoom.length ? `<div class="rl bad">${icon('bag')}${t('stashLost')}</div>` + noRoom.map((it, i) => chip(it, true, i)).join('') : '');
     if (fresh.length) setTimeout(() => banner(t('newTrophy'), 1.4), 600);
-    $('resLines').innerHTML = r.bonus ? `<div class="rl good">${icon('sparkles')}${t('bonus')} <span class="coin"></span><span class="num">+${r.bonus}</span></div>` : '';
+    $('resLines').innerHTML = (r.bold ? `<div class="rl good">${icon('shout')}${t('boldLine')}</div>` : '') + (r.bonus ? `<div class="rl good">${icon('sparkles')}${t('bonus')} <span class="coin"></span><span class="num">+${r.bonus}</span></div>` : '');
     $('resTotal').innerHTML = `<span class="small">${icon('bag')}${t('toStash')}</span>`;
     $('resBtns').innerHTML = `<button class="kbtn yellow big" id="mkGo">${icon('stall')}<span>${t('market')}</span></button>
       <div class="rowBtns"><button class="kbtn green" id="nextBtn">${icon('moon')}<span class="num">${run.night}</span>${icon('play')}</button><button class="kround grey" id="menuBtn2">${icon('home')}</button></div>`;
@@ -769,6 +847,7 @@ function animate(dt) {
   if (S) pg.visible = !((S.state === 'escaped' && S.endT > 0.7) || S.player.inWardrobe);
   const fa = S ? S.player.facing : 0; lantern.position.set(pg.position.x + Math.sin(fa) * 0.9, 1.7, pg.position.z + Math.cos(fa) * 0.9 + 0.3);
 
+  tutMarkerTick();
   // treasures: pop-in, bob, fly into the sack
   for (const [id, v] of props.treasures) {
     const t = S && S.treasures.find((x) => x.id === id);
@@ -788,7 +867,7 @@ function animate(dt) {
       v.wiggle = Math.max(0, (v.wiggle || 0) - dt * 5); v.g.rotation.z = Math.sin(time * 40) * 0.04 * v.wiggle;
       continue;
     }
-    v.bob += dt * 2; v.g.position.y = 0.05 + Math.sin(v.bob) * 0.06; v.g.rotation.y += dt * 0.8; v.g.scale.setScalar(s);
+    v.bob += dt * 2; v.g.position.y = (v.y0 ?? 0.05) + Math.sin(v.bob) * 0.06; v.g.rotation.y += dt * 0.8; v.g.scale.setScalar(s);
   }
   if (S) {
     for (const d of S.ducks) { const v = props.ducks.get(d.id); if (!v) continue; v.g.position.set(d.x, 0, d.z); v.g.rotation.y += v.spin * dt; v.spin *= 0.92; v.squash = Math.max(0, (v.squash || 0) - dt * 3); v.g.scale.set(1 + v.squash * 0.3, 1 - v.squash * 0.4, 1 + v.squash * 0.3); }
@@ -872,7 +951,7 @@ function animate(dt) {
   }
   flash = Math.max(0, flash - dt * 6); grade.uniforms.flash.value = flash;
   // danger grading: vignette tightens with wake, red tint while chased, cool tint while snoring
-  const w = S ? S.wake / 100 : 0; const chased = S && ['chase', 'wakeup'].includes(S.state);
+  const w = S ? S.wake / 100 : 0; const chased = S && ['chase', 'wakeup', 'lure'].includes(S.state);
   const peekSeen = S && S.peek === 'open' && !S.hidden;
   grade.uniforms.vig.value = lerp(grade.uniforms.vig.value, (S ? 1.0 : 0.6) + w * 0.5 + (chased || peekSeen ? 0.5 : 0), 0.08);
   const tint = grade.uniforms.tint.value;
@@ -948,8 +1027,8 @@ function animateMonster(dt) {
     if (Math.abs(walk) > 0.94 && !MO.stepped) { MO.stepped = true; sfx.stomp(ms.x, ms.z); }
     else if (Math.abs(walk) < 0.25) { MO.stepped = false; }
   } else {
-    const stand = st === 'wakeup' ? Math.min(1, ms.t / 0.4) : 1;
-    const moving = (st === 'chase' && ms.stun <= 0) || st === 'return';
+    const stand = st === 'wakeup' ? clamp(ms.t / 0.4, 0, 1) : 1;
+    const moving = ((st === 'chase' || st === 'lure') && ms.stun <= 0) || st === 'return';
     p.position.y = stand * 0.35 + (moving ? Math.abs(Math.sin(time * 9)) * 0.18 : 0);
     p.rotation.z = moving ? Math.sin(time * 9) * 0.07 : 0;
     p.rotation.x = st === 'caught' ? 0.25 : -stand * 0.12;
@@ -1038,7 +1117,7 @@ function updateCamera(dt) {
     off = _co.set(0, R * 1.05, R * 0.75);
   } else {
     target = _ct.set(S.player.x, 0, S.player.z - 0.8);
-    target.lerp(MO.group.position, ['chase', 'wakeup'].includes(S.state) ? 0.3 : 0.18); // keep the monster nearer the frame
+    target.lerp(MO.group.position, ['chase', 'wakeup', 'lure'].includes(S.state) ? 0.3 : 0.18); // keep the monster nearer the frame
     target.x = clamp(target.x, -L.W / 2 + (portrait ? 3 : 5), L.W / 2 - (portrait ? 3 : 5));
     target.z = clamp(target.z, -L.D / 2 + (portrait ? 4 : 3), L.D / 2 - 2.5);
     // settings 'Kamera': 0 = close, 1 = far. Default 0.25 is much closer than before on phones.
@@ -1093,7 +1172,7 @@ function updateHud() {
   if (!S) return;
   const w = clamp(S.wake, 0, 100);
   $('wakeFill').style.width = `calc(${w}% + 6px)`; const wc = 'kfill ' + (S.snoring ? 'blue' : w < 45 ? 'green' : w < 75 ? 'yellow' : 'red'); if (hudCache.wc !== wc) { hudCache.wc = wc; $('wakeFill').className = wc; }
-  const face = ['chase', 'wakeup'].includes(S.state) ? 'awake' : S.state === 'return' ? 'yawn' : S.peek === 'open' ? 'peek' : w < 45 ? 'sleep' : w < 75 ? 'drowsy' : 'angry';
+  const face = ['chase', 'wakeup', 'lure'].includes(S.state) ? 'awake' : S.state === 'return' ? 'yawn' : S.peek === 'open' ? 'peek' : w < 45 ? 'sleep' : w < 75 ? 'drowsy' : 'angry';
   if (hudCache.face !== face + L.monster.id) { hudCache.face = face + L.monster.id; $('wakeFace').innerHTML = monsterFace(face, L.monster.color, L.monster.belly); } $('wakeFace').classList.toggle('shake', w > 75 && S.state === 'play');
   $('wakeBar').classList.toggle('snore', !!S.snoring);
   const left = L.dawnTime - S.t; setText('timeTxt', left < 15 ? String(Math.max(0, Math.ceil(left))) : ''); if (hudCache.dawn !== (left < 15)) { hudCache.dawn = left < 15; $('dawnIcon').innerHTML = icon(left < 15 ? 'sunrise' : 'moon'); }
@@ -1101,9 +1180,12 @@ function updateHud() {
   setText('lootTxt', String(S.bag.length));
   updateTakeBtn(); setText('lullCount', String(S.lull));
   $('lullBtn').classList.toggle('hidden', S.lull <= 0); $('dropBtn').classList.toggle('off', !S.bag.length);
+  $('screamBtn').classList.toggle('hidden', S.screams <= 0); $('screamBtn').classList.toggle('off', S.state !== 'play');
+  tutorialTick();
   let cls = '', txt = '';
   if (S.L.inDark(S.player.x, S.player.z)) hint('dark', t('hintDark'));
   if (['chase', 'wakeup'].includes(S.state)) { cls = 'chase'; txt = S.dawn ? icon('door') + t('run') : icon('run') + Math.ceil(Math.max(0, S.chaseT)); if (S.monster.stun > 0) txt = icon('dizzy'); }
+  else if (S.state === 'lure') { if (S.monster.stun > 0) { cls = 'chase'; txt = icon('dizzy'); } else if (S.player.inWardrobe || S.L.inDark(S.player.x, S.player.z)) { cls = 'hidden2'; txt = icon('hide'); } else { cls = 'peek'; txt = icon('ear') + (S.monster.state === 'search' ? t('searching') : ''); } }
   else if (S.state === 'return') { cls = 'snore'; txt = icon('bed'); }
   else if (S.peek === 'warn') { cls = 'peek'; txt = icon('warn') + t('stop'); }
   else if (S.peek === 'open') { if (S.hidden) { cls = 'hidden2'; txt = icon('hide'); } else { cls = 'peek'; txt = icon('eye') + (S.player.m > 0.1 ? t('seen') : ''); } }
@@ -1118,7 +1200,7 @@ function debugLog() {
 }
 
 function toMenu() {
-  mode = 'menu'; hide('hud'); hide('result'); hide('pause'); show('menu');
+  tutReset(); mode = 'menu'; hide('hud'); hide('result'); hide('pause'); show('menu');
   S = null;
   L = null; MO = null; menuScene.build(); MO = makeMonster(menuScene.V.monster, menuScene.V.home); camSnap = true;
   $('stashBadge').textContent = save.stash.length; $('stashBadge').classList.toggle('hidden', !save.stash.length);
@@ -1317,6 +1399,10 @@ document.querySelectorAll('[data-close]').forEach((b) => { b.onclick = () => {
 const press = (el, fn) => el.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); userTapped = true; sfx.init(); fn(); });
 press($('dropBtn'), () => S && mode === 'play' && (dropLoot(S) || sfx.deny()));
 press($('lullBtn'), () => S && mode === 'play' && (useLullaby(S) || sfx.deny()));
+press($('screamBtn'), () => S && mode === 'play' && (scream(S) || sfx.deny()));
+$('tutGo').onclick = () => tutStart();
+$('tutSkip').onclick = () => tutSkip();
+$('tutReplay').onclick = () => { delete save.hints.tutScream; delete save.hints.tutSeen; writeSave(save); hide('how'); banner(t('tutReplayed'), 1.6); };
 press($('pauseBtn'), () => pause(true));
 $('resumeBtn').onclick = () => pause(false);
 $('quitBtn').onclick = () => { hide('pause'); paused = false; if (S) { unpackKit(save.run, S.kit); S.kit = []; } delete save.run.activeNight; run.night++; writeSave(save); toMenu(); }; // leaving a night = the night is lost
@@ -1325,6 +1411,7 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'Space') useLullaby(S);
   if (/^Digit[1-3]$/.test(e.code)) useItem(S, +e.code.slice(5) - 1) || sfx.deny();
   if (e.code === 'KeyQ') dropLoot(S);
+  if (e.code === 'KeyR') scream(S) || sfx.deny();
   if (e.code === 'Escape' || e.code === 'KeyP') pause(!paused);
 });
 let paused = false;
@@ -1372,7 +1459,7 @@ const takeBtn = $('takeBtn');
 takeBtn.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); userTapped = true; sfx.init(); takeHeld = true; takeBtn.classList.add('held'); });
 for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) takeBtn.addEventListener(ev, () => { takeHeld = false; takeBtn.classList.remove('held'); });
 function updateTakeBtn() {
-  const id = S && ['play', 'chase', 'wakeup', 'return'].includes(S.state) ? S.player.near : null;
+  const id = S && ACTIVE.includes(S.state) ? S.player.near : null;
   takeBtn.classList.toggle('hidden', id == null);
   if (id == null) return;
   const it = S.treasures.find((q) => q.id === id); takeBtn.style.setProperty('--p', Math.round((it ? it.progress : 0) * 100) + '%');
@@ -1389,7 +1476,7 @@ const A = { stompT: 0, tickK: -1 };
 function audioAmbience(dt) {
   if (paused || S.done) return;
   const ms = S.monster;
-  if ((ms.state === 'chase' && ms.stun <= 0) || ms.state === 'return') {
+  if (((ms.state === 'chase' || ms.state === 'lure') && ms.stun <= 0) || ms.state === 'return') {
     A.stompT -= dt; if (A.stompT <= 0) { A.stompT = ms.state === 'return' ? 0.55 : 0.34; sfx.stomp(ms.x, ms.z); }
   }
   const left = L.dawnTime - S.t, rate = left < 15 ? 2 : 1, k = Math.floor(S.t * rate);
@@ -1460,7 +1547,7 @@ function frame(now) {
     for (let i = 0; i < n && mode === 'play'; i++) simTick(dt);
     hudT -= dt; if (hudT <= 0) { hudT = 0.05; updateHud(); debugLog(); }
     sfx.setListener(S.player.x, S.player.z, L.W / 2); audioAmbience(dt);
-    sfx.update(dt, { mode: ['chase', 'wakeup'].includes(S.state) ? 'chase' : 'calm', intensity: S.wake / 100, muffled: S.snoring });
+    sfx.update(dt, { mode: ['chase', 'wakeup', 'lure'].includes(S.state) ? 'chase' : 'calm', intensity: S.wake / 100, muffled: S.snoring });
   } else sfx.update(dt, { mode: ['menu', 'market', 'wardrobe', 'hideout'].includes(mode) ? 'calm' : 'quiet' });
   marketView.update(dt);
   input.enabled = mode === 'play' && !paused;

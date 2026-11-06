@@ -61,10 +61,12 @@
         <div id="lootPill" class="kpanel dark"><i data-icon="bag"></i><span class="num" id="lootTxt">0</span></div>
       </div>
       <div id="statusTag"></div>
+      <div id="tutCard" class="hidden"></div>
       <div id="actions">
         <div id="kitSlots"></div>
         <button id="takeBtn" class="kround green act hidden" data-i18n-aria="take"><i class="takeRing"></i><i data-icon="hand"></i></button>
         <button id="lullBtn" class="kround blue act" data-i18n-aria="lullaby"><i data-icon="note"></i><span class="badge num" id="lullCount">0</span></button>
+        <button id="screamBtn" class="kround yellow act" data-i18n-aria="scream"><i data-icon="shout"></i></button>
         <button id="dropBtn" class="kround red act" data-i18n-aria="drop"><i data-icon="bag"></i></button>
       </div>
     </div>
@@ -107,8 +109,27 @@
           <div><b data-icon="zzz"></b><span data-i18n-html="how2"></span></div>
           <div><b data-icon="eye"></b><span data-i18n-html="how3"></span></div>
           <div><b data-icon="door"></b><span data-i18n-html="how4"></span></div>
+          <div class="wide"><b data-icon="shout"></b><span data-i18n-html="how5"></span></div>
         </div>
+        <button class="kbtn" id="tutReplay"><i data-icon="retry"></i><span data-i18n="tutReplay"></span></button>
         <button class="kbtn green" data-close="how" data-i18n="ok"></button>
+      </div>
+    </div>
+
+    <!-- SCREAM TUTORIAL INTRO (the night is paused while it is open) -->
+    <div id="tutIntro" class="screen hidden">
+      <div class="kcard tutIntro">
+        <div class="tutNew" data-i18n="tutNew"></div>
+        <h2 data-i18n="tutIntroTitle"></h2>
+        <ol class="tutSteps">
+          <li><b data-icon="i_crown"></b><span data-i18n-html="tutIntro1"></span></li>
+          <li><b data-icon="shout"></b><span data-i18n-html="tutIntro2"></span></li>
+          <li><b data-icon="hide"></b><span data-i18n-html="tutIntro3"></span></li>
+          <li><b data-icon="hand"></b><span data-i18n-html="tutIntro4"></span></li>
+        </ol>
+        <p class="tutNote" data-i18n-html="tutIntroNote"></p>
+        <button class="kbtn green big" id="tutGo"><i data-icon="play"></i><span data-i18n="tutStart"></span></button>
+        <button class="tutSkip" id="tutSkip" data-i18n="tutSkip"></button>
       </div>
     </div>
 
