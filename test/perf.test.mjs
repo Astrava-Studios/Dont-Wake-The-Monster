@@ -1,46 +1,48 @@
-// Frame-rate governor (src/perf.js): steps down when slow, undoes a step that buys nothing, climbs back with headroom.
-// It never lowers the resolution: its steps are shadows off, simple materials and, last, a steady 30 fps.
+// Frame-rate governor (src/perf.js). Within a night only the free 30 fps cap moves; the look (shadows, simple
+// materials: a shader recompile, i.e. a freeze) only changes between nights. The resolution is never touched.
 import assert from 'node:assert/strict';
-import { createGovernor, ladder, CAP30 } from '../src/perf.js';
+import { createGovernor, looks, CAP30 } from '../src/perf.js';
 
 let n = 0;
 const ok = (name, fn) => { fn(); n++; console.log('  ok', name); };
-// feed `secs` seconds of frames; ms(level) gives the frame time the phone manages at that level (a cap holds frames back)
-const run = (G, secs, ms, refresh = 16.7) => {
-  for (let t = 0; t < secs;) { const f = Math.max(ms(G.level), G.step().cap || 0) / 1000; G.sample(f, refresh); t += f; }
+// play `secs` seconds; ms(look) = how long the phone needs for a frame with that look (the cap holds frames back)
+const play = (G, secs, ms, refresh = 16.7) => {
+  G.reset();
+  for (let t = 0; t < secs;) { const f = Math.max(ms(G.look), G.cap ? CAP30 : 0) / 1000; G.sample(f, refresh); t += f; }
 };
-const mk = (steps = ladder(true, 'med'), level = 0) => { const log = []; const G = createGovernor({ steps, level, apply: (s, l, why) => log.push([l, why]) }); return { G, log }; };
+const mk = (o = {}) => { const log = []; const G = createGovernor({ looks: looks(true, 'med'), ...o, apply: (s, why) => log.push([s, why, G.look]) }); return { G, log }; };
+const nights = (G, k, ms, secs = 40) => { for (let i = 0; i < k; i++) { G.nextNight(); play(G, secs, ms); } };
 
-ok('ladder: Auto on Medium = full, no shadows, simple materials, then 30 fps; never a resolution step', () => {
-  const s = ladder(true, 'med');
-  assert.deepEqual(s.map((x) => [x.shadows, x.lite, x.cap]), [[true, false, 0], [false, false, 0], [false, true, 0], [false, true, CAP30]]);
-  assert.ok(s.every((x) => !('scale' in x)));
+ok('looks: Auto on Medium = full, no shadows, simple materials; Low and manual choices keep their look', () => {
+  assert.deepEqual(looks(true, 'med').map((x) => [x.shadows, x.lite]), [[true, false], [false, false], [false, true]]);
+  assert.equal(looks(true, 'low').length, 1); assert.equal(looks(false, 'high').length, 1);
 });
-ok('ladder: Low (already simple) and manual choices only add the 30 fps step', () => {
-  assert.deepEqual(ladder(true, 'low').map((x) => x.cap), [0, CAP30]);
-  assert.deepEqual(ladder(false, 'high').map((x) => [x.shadows, x.lite, x.cap]), [[true, false, 0], [true, false, CAP30]]);
+ok('a phone that runs at 60 stays on full quality, uncapped', () => {
+  const { G, log } = mk(); nights(G, 3, () => 16.7); assert.equal(G.look, 0); assert.equal(G.cap, false); assert.equal(log.length, 0);
 });
-ok('a phone that runs at 60 stays on full quality', () => {
-  const { G, log } = mk(); run(G, 30, () => 16.7); assert.equal(G.level, 0); assert.equal(log.length, 0);
+ok('slow frames cap to a steady 30 within the night, without touching the look', () => {
+  const { G, log } = mk(); play(G, 20, () => 30);
+  assert.equal(G.cap, true); assert.equal(G.look, 0); assert.ok(log.every(([s]) => s.shadows && !s.lite));
 });
-ok('slow frames step down until it is smooth, then it stays there', () => {
-  const { G } = mk(); run(G, 40, (l) => [40, 30, 16.7, 16.7][l]);
-  assert.equal(G.level, 2);
+ok('the look steps down only between nights, until a night runs at 60', () => {
+  const { G } = mk(); const ms = (l) => [30, 24, 16.7][l];
+  play(G, 30, ms); assert.equal(G.look, 0);
+  nights(G, 1, ms); assert.equal(G.look, 1);
+  nights(G, 1, ms); assert.equal(G.look, 2);
+  nights(G, 2, ms); assert.equal(G.look, 2); assert.equal(G.cap, false);
 });
-ok('a phone too slow for 60 even on the simplest look settles on a steady 30 fps', () => {
-  const { G } = mk(); run(G, 60, (l) => [50, 40, 28, 28][l]);
-  assert.equal(G.level, 3); assert.equal(G.step().cap, CAP30);
+ok('too slow even with the simplest look: stays capped at 30', () => {
+  const { G } = mk(); nights(G, 5, (l) => [50, 40, 28][l]); assert.equal(G.look, 2); assert.equal(G.cap, true); assert.equal(G.step().cap, CAP30);
 });
-ok('a browser already capped at 30 fps (no gain) gets its step undone, not chased down', () => {
-  const { G, log } = mk(); run(G, 20, () => 33.4);
-  assert.equal(G.level, 0); assert.ok(log.some(([, why]) => why === 'no gain'));
+ok('a simpler look that buys nothing (browser capped at 30 anyway) is undone and not retried', () => {
+  const { G, log } = mk(); nights(G, 5, () => 33.4);
+  assert.equal(G.look, 0); assert.ok(log.some(([, why]) => why === 'no gain'));
 });
-ok('with headroom it climbs back, and backs off when the climb fails', () => {
-  const { G } = mk(ladder(true, 'med'), 2); run(G, 60, () => 16.7); assert.equal(G.level, 0);
-  const b = mk(ladder(true, 'med'), 2); run(b.G, 120, (l) => (l >= 2 ? 16.7 : 30));
-  assert.equal(b.G.level, 2); assert.ok(b.G.upFails >= 1);
+ok('nights with plenty of headroom try a nicer look again, and wait longer after a failed try', () => {
+  const { G } = mk({ look: 2 }); nights(G, 3, () => 16.7); assert.ok(G.look < 2);
+  const b = mk({ look: 2 }).G; nights(b, 12, (l) => (l === 2 ? 16.7 : 30)); assert.ok(b.lookFails >= 1); assert.equal(b.look >= 1, true);
 });
-ok('ignores the first seconds of a night (shader compiles)', () => {
-  const { G } = mk(); run(G, 2, () => 200); assert.equal(G.level, 0);
+ok('capped with headroom: tries 60 again inside the night', () => {
+  const { G } = mk({ cap: true }); play(G, 20, () => 12); assert.equal(G.cap, false);
 });
 console.log(`perf: ${n} tests passed`);

@@ -7,9 +7,11 @@
 const vv = window.visualViewport;
 let queued = false;
 
+let lastVh = '';
 function setVh() {
-  const h = vv ? vv.height : innerHeight;
-  document.documentElement.style.setProperty('--vh', `${h / 100}px`);
+  const h = vv ? vv.height : innerHeight, v = `${h / 100}px`;
+  if (v === lastVh) return; // the HUD toggles classes many times a second: don't restyle the page each time
+  lastVh = v; document.documentElement.style.setProperty('--vh', v);
 }
 
 function fitCard(card) {
@@ -48,5 +50,16 @@ export function initFit() {
   new MutationObserver(refit).observe(app, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
   // Web fonts change text metrics once they load.
   if (document.fonts) document.fonts.ready.then(refit);
+  // Only the sheet lists are meant to scroll. A tapped (focused) button that sticks out of its screen made the
+  // browser scroll the overflow:hidden screen or the page to reveal it, and the whole UI stayed shifted down.
+  // Any such scroll is undone straight away.
+  document.addEventListener('scroll', (e) => {
+    const el = e.target;
+    if (el === document || el === document.documentElement || el === document.body) { if (scrollX || scrollY) scrollTo(0, 0); return; }
+    if (!el.scrollTop && !el.scrollLeft) return;
+    const oy = getComputedStyle(el).overflowY;
+    if (oy === 'hidden' || oy === 'clip' || oy === 'visible') { el.scrollTop = 0; el.scrollLeft = 0; }
+  }, { capture: true, passive: true });
+  if (vv) vv.addEventListener('scroll', () => { if (scrollX || scrollY) scrollTo(0, 0); });
   refit();
 }

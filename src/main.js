@@ -42,8 +42,8 @@ import { icon, monsterFace, hydrateIcons, flag, GOOD_ICON } from './icons.js';
 import { measureRig, dressPlayer, animateCostume, lanternColor } from './costumes.js';
 import { setBonus, stashLoot, collect, lanternStats, buyHouse, chooseHouse } from './hideout.js';
 import { setDarkZones, setDarkLight, patchDark } from './darkness.js';
-import { gpuName, detectTier, ladder, createGovernor, measureRefresh } from './perf.js';
-import { setLite, mergeStatic } from './lite.js';
+import { gpuName, detectTier, looks, createGovernor, measureRefresh } from './perf.js';
+import { setLite, mergeStaticJob } from './lite.js';
 
 const Q = new URLSearchParams(location.search);
 applyOverrides(location.search);
@@ -98,7 +98,7 @@ const renderer = new THREE.WebGLRenderer({ canvas: $('game'), antialias: false, 
 const GPU = gpuName(renderer);
 if (save.qualityAuto) save.quality = detectTier(renderer, isTouch);
 save.hq = save.quality === 'high';
-if (save.perfGpu !== GPU) { save.perfGpu = GPU; save.perfLevel = 0; } // the remembered step belongs to this device
+if (save.perfGpu !== GPU) { save.perfGpu = GPU; save.perfLook = 0; save.perfCap = false; } // the remembered look belongs to this device
 renderer.setPixelRatio(getQualityRatio());
 renderer.shadowMap.enabled = save.quality !== 'low';
 renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -310,6 +310,8 @@ function buildWorld(level, sim) {
     if (o.kind === 'bookshelf' && o.rot) g.rotation.y = o.x > 0 ? -Math.PI / 2 : Math.PI / 2;
     g.traverse((c) => { if (c.userData.flame) props.flames.push(c); });
     if (o.loose) g = addLoose(g, o.kind, o.x, o.z, o); else world.add(g);
+    // the squash-in is skipped on the simple look: the room can then be baked into a few meshes right away
+    if (liteOn()) { k++; continue; }
     g.userData.spawnAt = time + 0.05 + (k++) * 0.03; g.userData.settle = true; g.scale.setScalar(0.001);
   }
   // candle lights on the first tables
@@ -390,6 +392,7 @@ function makeSim(seed) {
 function buildNightWorld() { buildWorld(S.L, S); setDarkZones(S.L.darkZones); patchDark(scene); }
 function newNight(seedOverride) {
   const seed = seedOverride ?? (Q.has('seed') && run.night === 1 ? +Q.get('seed') : (Math.random() * 1e9) | 0);
+  gov.nextNight(); // a look change (shader recompile) only ever happens here, while the room is being built anyway
   S = makeSim(seed);
   buildNightWorld();
   bot = createBot({ greed: 9 });
@@ -474,7 +477,7 @@ function renderHousePicker() {
     const id = b.dataset.h; if (id === L.house) return;
     const ok = save.meta.houses.includes(id) ? chooseHouse(save, id) : buyHouse(save, id);
     if (!ok) { sfx.deny(); return; }
-    writeSave(save); if (b.querySelector('small')) sfx.buy(); newNight();
+    writeSave(save); if (b.querySelector('small')) sfx.buy(); newNightSoon();
   }; });
 }
 function renderKitPicker() {
@@ -496,8 +499,13 @@ function renderKitSlots() {
   el.querySelectorAll('[data-slot]').forEach((b) => press(b, () => S && mode === 'play' && (useItem(S, +b.dataset.slot) || sfx.deny())));
 }
 // before a night starts: is the guild's rent due?
+// Building a room takes a few hundred ms on a slow phone: let the tap's screen change paint first, then build,
+// so the button answers at once instead of the whole UI freezing on the old screen.
+const afterPaint = (fn) => requestAnimationFrame(() => setTimeout(fn, 0));
+let nightQueued = false;
+function newNightSoon() { if (nightQueued) return; nightQueued = true; afterPaint(() => { nightQueued = false; newNight(); }); }
 function beginNight() {
-  if (!rentDueNow(save.run)) { newNight(); return; }
+  if (!rentDueNow(save.run)) { newNightSoon(); return; }
   mode = 'result'; S = null; hide('menu'); hide('hud');
   const amt = rentAmount(save.run.rentIdx), can = canPayRent(save.run);
   $('resTitle').textContent = t('rentDueTitle'); $('resStars').innerHTML = '';
@@ -505,7 +513,7 @@ function beginNight() {
   $('resItems').innerHTML = ''; $('resTotal').innerHTML = `<div class="kpanel dark"><span class="coin"></span><span class="num">${save.coins}</span></div>`;
   $('resBtns').innerHTML = (can ? `<button class="kbtn green big" id="rentPay">${icon('bank')}<span>${t('pay')}</span><span class="coin"></span><span class="num">${amt}</span></button>` : '')
     + `<div class="rowBtns">${save.stash.length || !can ? `<button class="kbtn yellow" id="rentSell">${icon('stall')}<span>${t('sellFirst')}</span></button>` : ''}<button class="kbtn grey" id="rentGive">${t('giveUp')}</button></div>`;
-  const pb = $('rentPay'); if (pb) pb.onclick = () => { payRent(save.run); writeSave(save); sfx.buy(); hide('result'); newNight(); };
+  const pb = $('rentPay'); if (pb) pb.onclick = () => { payRent(save.run); writeSave(save); sfx.buy(); hide('result'); newNightSoon(); };
   const sb = $('rentSell'); if (sb) sb.onclick = () => { hide('result'); marketView.enter('run'); };
   $('rentGive').onclick = () => gameOver();
   show('result');
@@ -517,7 +525,7 @@ function gameOver() {
   $('resLines').innerHTML = `<p class="resText">${t('gameOverText')}</p><div class="goRun"><div><b class="num">${sum.nights}</b>${t('sumNights')}</div><div><b class="num">${sum.sold}</b>${t('sumSold')}</div><div><b class="num">${sum.rentsPaid}</b>${t('sumRents')}</div></div>`;
   $('resItems').innerHTML = ''; $('resTotal').innerHTML = '';
   $('resBtns').innerHTML = `<button class="kbtn yellow big" id="newRunBtn">${icon('play')}<span>${t('newRun')}</span></button><div class="rowBtns"><button class="kround grey" id="menuBtn2">${icon('home')}</button></div>`;
-  $('newRunBtn').onclick = () => { hide('result'); newNight(); };
+  $('newRunBtn').onclick = () => { hide('result'); newNightSoon(); };
   $('menuBtn2').onclick = () => { hide('result'); toMenu(); };
   show('result');
 }
@@ -1214,7 +1222,7 @@ function applyQuality() {
   save.quality = q;
   save.hq = q === 'high';
   scene.environment = q === 'low' ? null : envTex;
-  gov.setSteps(perfLadder()); // also syncs shadows + materials through applyPerf
+  gov.setLooks(perfLooks()); // also syncs shadows + materials through applyPerf
   applySettings();
   resize();
   syncShadows();
@@ -1240,7 +1248,7 @@ function syncSettings() {
       b.onclick = () => {
         save.qualityAuto = b.dataset.q === 'auto';
         if (!save.qualityAuto) save.quality = b.dataset.q;
-        gov.set(0, 'settings'); // a fresh choice starts in full; the governor steps down again if it has to
+        gov.full('settings'); // a fresh choice starts in full; the governor steps down again if it has to
         writeSave(save);
         applyQuality();
         syncSettings();
@@ -1269,15 +1277,17 @@ $('pauseSettings').onclick = () => { hide('pause'); openSettings(); };
 $('settingsClose').onclick = () => { writeSave(save); hide('settings'); if (paused) show('pause'); else if (mode === 'menu') show('menu'); };
 // frame-rate governor (perf.js): shadows / materials / 30 fps cap while a night runs slow, back up with headroom.
 // It never touches the resolution.
-const perfLadder = () => ladder(save.qualityAuto, save.quality);
+const perfLooks = () => looks(save.qualityAuto, save.quality);
 let liteApplied = false;
 function syncLite() { const on = liteOn(); if (on || liteApplied) setLite(scene, on); liteApplied = on; }
-function applyPerf(step, level, why) {
-  perfStep = step; syncShadows(); syncLite();
-  if (why !== 'steps' && save.perfLevel !== level) { save.perfLevel = level; writeSave(save); }
-  if (Q.has('perf')) console.log('[perf]', level, JSON.stringify(step), why);
+function applyPerf(step, why) {
+  const lookChanged = step.shadows !== perfStep.shadows || step.lite !== perfStep.lite;
+  perfStep = step;
+  if (lookChanged || why === 'looks' || why === 'settings') { syncShadows(); syncLite(); } // the cap alone needs neither
+  if (why !== 'looks' && (save.perfLook !== gov.look || save.perfCap !== gov.cap)) { save.perfLook = gov.look; save.perfCap = gov.cap; writeSave(save); }
+  if (Q.has('perf')) console.log('[perf]', JSON.stringify(step), why);
 }
-const gov = createGovernor({ steps: perfLadder(), level: save.perfLevel || 0, apply: applyPerf });
+const gov = createGovernor({ looks: perfLooks(), look: save.perfLook || 0, cap: !!save.perfCap, apply: applyPerf });
 perfStep = gov.step();
 // 120 Hz panels: play at 60 fps (half the GPU work and heat); 60 / 90 Hz run at their own rate
 let refreshMs = 16.7, refreshCap = 0;
@@ -1384,9 +1394,35 @@ function mergeWorld() {
   for (const b of S.bodies || []) if (b.view) dyn.add(b.view.pivot);
   fxHidden.forEach((o) => dyn.add(o));
   if (MO) dyn.add(MO.group);
-  const r = mergeStatic(world, (o) => dyn.has(o));
-  if (Q.has('perf')) console.log('[perf] merged', r.before, '→', r.after, 'meshes');
+  mergeJob = { world, it: mergeStaticJob(world, (o) => dyn.has(o)) };
 }
+let mergeJob = null;
+// a few ms of merging per frame, so the night card and its buttons stay responsive while the room is baked
+function runMerge(budgetMs) {
+  if (!mergeJob) return;
+  if (mergeJob.world !== world) { mergeJob = null; return; } // the room was rebuilt meanwhile
+  const t0 = performance.now();
+  for (;;) {
+    const r = mergeJob.it.next();
+    if (r.done) { if (Q.has('perf')) console.log('[perf] merged', r.value.before, '→', r.value.after, 'meshes'); mergeJob = null; return; }
+    if (performance.now() - t0 > budgetMs) return;
+  }
+}
+// Shader warm-up: whenever a new room (menu, hideout, market, night) is built, its shaders are compiled in the
+// background (KHR_parallel_shader_compile) while the last frame stays on screen. Drawing right away would stall
+// the page until every shader is compiled — the freeze after tapping a button on slow phones.
+// The compile starts after a short timeout, so the screen the button opened (night card, wardrobe...) is painted
+// first. A night room is also held back until it is baked (runMerge), so its ~2000 loose meshes are never drawn.
+let warmWorld = null, compiling = false, holdUntil = 0;
+function warmUp() {
+  warmWorld = world;
+  if (!renderer.compileAsync || Q.has('nowarm')) return;
+  if (liteOn()) setLite(scene, true); // swap before compiling and baking: only the materials that will be drawn
+  compiling = true; holdUntil = performance.now() + 2500; // never hold the picture longer than this
+  const w = world, done = () => { if (warmWorld === w) compiling = false; };
+  setTimeout(() => { if (warmWorld === w) renderer.compileAsync(scene, camera).then(done, done); }, 30);
+}
+const holding = () => (compiling || (liteOn() && mergeJob && mergeJob.world === world)) && performance.now() < holdUntil;
 function frame(now) {
   requestAnimationFrame(frame);
   if (mode !== 'play' && now - last < 1000 / 32) return; // menus, market, hideout: 30 fps is plenty and saves battery
@@ -1396,7 +1432,10 @@ function frame(now) {
   let dt = Math.min(0.05, raw); last = now;
   if (mode === 'play' && !paused && !document.hidden && S && !autoplay) gov.sample(raw, Math.max(refreshMs, refreshCap));
   if ((liteSweepT -= raw) <= 0) { liteSweepT = 0.5; if (liteOn()) setLite(scene, true); } // new objects (treasures, costumes) get the simple materials too
+  if (world !== warmWorld) warmUp();
   if (L && S && !world.userData.merged && !world.children.some((g) => g.userData.settle)) mergeWorld();
+  runMerge(holding() ? 12 : 4); // nothing is drawn while holding: merge faster
+  if (holding()) { const tx = levelTex.find((x) => !x.userData.up); if (tx) { renderer.initTexture(tx); tx.userData.up = true; } } // upload one room texture per frame instead of all on the first one
   if (paused) dt = 0;
   time += dt;
   if (mode === 'play' && S) {
@@ -1409,6 +1448,7 @@ function frame(now) {
   marketView.update(dt);
   input.enabled = mode === 'play' && !paused;
   animate(dt); updateCamera(dt); updateFloaters(dt);
+  if (holding() && mode !== 'play') return; // keep the last frame until the new room is compiled (and baked)
   if (composer) composer.render(dt);
   else renderer.render(scene, camera);
 }
@@ -1469,6 +1509,6 @@ window.GAME = {
   audioReport: () => audioReport(sfx.samples),
   tick(sec, inp) { for (let i = 0; i < sec * 60; i++) { if (mode === 'play' && S) { step(S, 1 / 60, inp || (autoplay ? bot(S, 1 / 60) : input.get())); handleEvents(); if (S.done && mode === 'play') finishNight(); } time += 1 / 60; animate(1 / 60); } updateCamera(1); updateHud(); debugLog(); if (composer) composer.render(1 / 60); else renderer.render(scene, camera); },
   setAutoplay(v) { autoplay = v; },
-  get perf() { return { gpu: GPU, quality: save.quality, auto: save.qualityAuto, level: gov.level, step: perfStep, lite: liteOn(), refreshMs, playMinMs: playMinMs(), pixelRatio: renderer.getPixelRatio(), calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, programs: renderer.info.programs.length }; }, gov,
+  get perf() { return { gpu: GPU, quality: save.quality, auto: save.qualityAuto, look: gov.look, cap: gov.cap, step: perfStep, lite: liteOn(), refreshMs, playMinMs: playMinMs(), pixelRatio: renderer.getPixelRatio(), calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, programs: renderer.info.programs.length }; }, gov,
 };
 window.__dwtm = window.GAME;

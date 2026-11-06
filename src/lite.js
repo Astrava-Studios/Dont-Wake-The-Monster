@@ -39,7 +39,10 @@ export function setLite(root, on) {
 
 // Bakes the static meshes under `world` into one mesh per material. isDynamic(obj) marks subtrees that still move
 // (loose props, treasures, the clock hand...): those are left alone, as are transparent, skinned and mirrored meshes.
-export function mergeStatic(world, isDynamic) {
+// A generator: it yields after each material, so the caller can spread the work over frames (a slow phone needs
+// a few hundred ms for a whole room, which froze the night card). Each material swaps in one go, so a half-done
+// room still looks right.
+export function* mergeStaticJob(world, isDynamic) {
   world.updateMatrixWorld(true);
   const inv = new THREE.Matrix4().copy(world.matrixWorld).invert();
   const buckets = new Map(), mtx = new THREE.Matrix4();
@@ -69,9 +72,17 @@ export function mergeStatic(world, isDynamic) {
     const mesh = new THREE.Mesh(merged, b.mat); mesh.castShadow = b.cast; mesh.receiveShadow = b.recv; mesh.userData.merged = true;
     world.add(mesh); after++;
     for (const { o } of b.list) o.removeFromParent();
+    yield;
   }
   // groups left empty are dropped too, so the per-frame matrix update skips them
   const prune = (o) => { for (const c of [...o.children]) prune(c); if (o !== world && o.isGroup && !o.children.length && !isDynamic(o)) o.removeFromParent(); };
   prune(world);
   return { before, after };
+}
+
+// all at once (tests, tools)
+export function mergeStatic(world, isDynamic) {
+  const job = mergeStaticJob(world, isDynamic); let r;
+  do r = job.next(); while (!r.done);
+  return r.value;
 }

@@ -13,12 +13,21 @@ const rnd = (a, b) => a + Math.random() * (b - a);
 const jit = (p = 0.06) => 1 + (Math.random() * 2 - 1) * p; // random pitch for impacts
 
 // median pitch (Hz) of the voiced parts, normalised autocorrelation (first strong peak, so no octave jumps)
+// Cheap enough for a slow phone (the full-rate version froze the first tap for ~2 s): the signal is averaged
+// down to ~12 kHz (plenty for a 60–500 Hz voice), at most 40 voiced frames are looked at, and each lag is
+// correlated once.
 export function voicePitch(d, sr) {
-  const F = Math.round(sr * 0.04), f = [];
-  for (let s = 0; s + F < d.length; s += F * 2) {
-    let e = 0; for (let k = 0; k < F; k++) e += d[s + k] * d[s + k]; if (e / F < 1e-4) continue;
-    const r = (lag) => { let c = 0, a = 0, b = 0; for (let k = 0; k + lag < F; k++) { c += d[s + k] * d[s + k + lag]; a += d[s + k] * d[s + k]; b += d[s + k + lag] * d[s + k + lag]; } return c / Math.sqrt(a * b + 1e-12); };
-    for (let lag = Math.round(sr / 500); lag < Math.round(sr / 60); lag++) { const v = r(lag); if (v > 0.6 && v >= r(lag - 1) && v >= r(lag + 1)) { f.push(sr / lag); break; } }
+  const step = Math.max(1, Math.floor(sr / 12000)), rate = sr / step, n = Math.floor(d.length / step);
+  const x = new Float32Array(n);
+  for (let i = 0; i < n; i++) { let s = 0; for (let k = 0; k < step; k++) s += d[i * step + k]; x[i] = s / step; }
+  const F = Math.round(rate * 0.04), voiced = [], f = [];
+  for (let s = 0; s + F < n; s += F * 2) { let e = 0; for (let k = 0; k < F; k++) e += x[s + k] * x[s + k]; if (e / F >= 1e-4) voiced.push(s); }
+  const pick = voiced.length <= 40 ? voiced : Array.from({ length: 40 }, (_, i) => voiced[Math.floor((i * voiced.length) / 40)]);
+  const lo = Math.round(rate / 500), hi = Math.round(rate / 60);
+  for (const s of pick) {
+    const r = (lag) => { let c = 0, a = 0, b = 0; for (let k = 0; k + lag < F; k++) { c += x[s + k] * x[s + k + lag]; a += x[s + k] * x[s + k]; b += x[s + k + lag] * x[s + k + lag]; } return c / Math.sqrt(a * b + 1e-12); };
+    let prev = r(lo - 1), cur = r(lo);
+    for (let lag = lo; lag < hi; lag++) { const next = r(lag + 1); if (cur > 0.6 && cur >= prev && cur >= next) { f.push(rate / lag); break; } prev = cur; cur = next; }
   }
   f.sort((a, b) => a - b); return f.length ? Math.round(f[Math.floor(f.length / 2)]) : 0;
 }
@@ -201,9 +210,13 @@ export class Sfx {
       const pack = own.length ? [] : (await Promise.all((got.pack.length ? got.pack : await fetchPackBytes()).map(decode))).filter(Boolean);
       const bufs = own.length ? own : pack;
       const clips = [];
+      const yieldNow = () => new Promise((r) => setTimeout(r, 0)); // split the analysis so taps and frames get through
       for (const raw of bufs) {
+        await yieldNow();
         const b = compactSpeech(this.ctx, raw);
+        await yieldNow();
         const syl = voiceSyllables(b); if (!syl.length) continue;
+        await yieldNow();
         // phrase starts: syllables that follow a pause, so speech never begins mid-word
         const starts = syl.filter((sy, i) => i === 0 || sy[0] - (syl[i - 1][0] + syl[i - 1][1]) > 0.08).map((sy) => Math.max(0, sy[0] - 0.03));
         // a gentle slow-down makes him a bit bigger; a high voice (the fallback pack) is slowed more
