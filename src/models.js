@@ -107,6 +107,16 @@ export function buildMonster(type) {
   for (let i = 0; i < 4; i++) { const st = M(new THREE.OctahedronGeometry(0.14), toon('#ffe066', { emissive: '#ffcc00', ei: 0.8 }), Math.cos(i * 1.57) * 0.6, 0, Math.sin(i * 1.57) * 0.6, stars, false); st.scale.y = 0.5; }
   const sh = new THREE.Mesh(new THREE.CircleGeometry(1.9, 16), new THREE.MeshBasicMaterial({ color: '#000', transparent: true, opacity: 0.22, depthWrite: false }));
   sh.rotation.x = -Math.PI / 2; sh.position.y = 0.03; g.add(sh);
+  addAccessories(type, head, pivot);
+  g.scale.setScalar(type.scale);
+  return { group: g, pivot, head, body, eyesClosed, eyesOpen, pupils, brows, mouth, teeth, smile, bubble, arms, feet, tail, stars };
+}
+
+// The themed monsters' outfits. head / pivot use the procedural monster's coordinates (head centre; body with the floor
+// at y=0); the Hornbeast passes adapter groups that map them onto its own head and back. ownHorns: the body already
+// has horns (the Hornbeast tints its own instead of growing Oozefang's crystal cones).
+export function addAccessories(type, head, pivot, { ownHorns = false } = {}) {
+  const white = toon('#ffffff'), cream = toon('#fff1cf');
   if (type.wyrm) { // Bookwyrm: round reading glasses, a striped nightcap, books stacked on its back, little wing fins
     const gold = toon('#d9b26a', { metal: 1 });
     for (const sx of [-1, 1]) { const rim = M(new THREE.TorusGeometry(0.24, 0.035, 6, 14), gold, sx * 0.38, 0.2, 0.93, head, false); void rim; }
@@ -136,7 +146,7 @@ export function buildMonster(type) {
     }
   } else if (type.alchemist) { // Professor Oozefang: glowing crystal horns, potion flask on back, slime orbs
     const arcane = toon('#00ffcc', { emissive: '#00ffcc', ei: 0.6 });
-    for (const s of [-1, 1]) {
+    if (!ownHorns) for (const s of [-1, 1]) {
       const horn = M(new THREE.ConeGeometry(0.18, 0.75, 6), arcane, s * 0.55, 0.88, 0.05, head);
       horn.rotation.set(-0.2, 0, -s * 0.45);
     }
@@ -148,8 +158,6 @@ export function buildMonster(type) {
     M(S(0.25, 10, 8), toon('#ff00aa', { emissive: '#ff00aa', ei: 0.5, transparent: true, opacity: 0.85 }), 0, 0, 0, flask);
     M(C(0.08, 0.08, 0.18, 8), cream, 0, 0.28, 0, flask);
   }
-  g.scale.setScalar(type.scale);
-  return { group: g, pivot, head, body, eyesClosed, eyesOpen, pupils, brows, mouth, teeth, smile, bubble, arms, feet, tail, stars };
 }
 
 export function buildNest(theme) {

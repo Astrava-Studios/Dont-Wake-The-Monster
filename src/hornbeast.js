@@ -1,10 +1,10 @@
 // The Hornbeast: a sculpted, textured monster (Meshy AI model, public/models/monster/hornbeast.glb) that stands in
-// for the procedural body of the regular monsters. The model has no skeleton, so it gets a "soft rig" in its vertex
+// for the procedural monster body (themed monsters keep their outfits). The model has no skeleton, so it gets a "soft rig" in its vertex
 // shader: the head, tail and the four legs bend around fixed pivots, weighted by where each vertex sits. Their angles
 // come from plain Groups (head, tail, arms) with the same names as the procedural monster's parts, so main.js
 // animates both the same way. Eyelids sit over the painted eyes; each monster type re-tints the texture (hue shift).
 import * as THREE from 'three';
-import { toon, M } from './models.js';
+import { toon, M, addAccessories } from './models.js';
 
 // model space (as exported, ~1.5 x 1.3 x 1.9, facing +z, centred at the origin)
 const MODEL_MIN_Y = -0.664;
@@ -13,12 +13,14 @@ const TAIL_P = new THREE.Vector3(0, -0.2, -0.4);
 const FRONT_P = [new THREE.Vector3(-0.52, -0.3, 0.35), new THREE.Vector3(0.52, -0.3, 0.35)];
 const HIND_P = [new THREE.Vector3(-0.3, -0.38, -0.35), new THREE.Vector3(0.3, -0.38, -0.35)];
 const EYE = { x: 0.2, y: 0.02, z: 0.85 }; // painted eyes: centre, ~0.11 x 0.10 half-size
-const SCALE = 2.05; // world units per model unit: about the size of the procedural monster
+const SCALE = 2.05;
+const ACC_HEAD = 0.53, ACC_BODY = 0.65; // procedural head / body units -> this model's head (model units) / pivot // world units per model unit: about the size of the procedural monster
 const BASE_FUR = '#5c35a2'; // the texture's fur colour around the eyes (lid colour for grumbo)
 const BASE_TYPE = '#8e6bd8'; // grumbo's colour, the hue the texture is painted in
 
 const VERT_HEAD = /* glsl */`
 uniform mat4 uHbHead, uHbTail, uHbArm0, uHbArm1, uHbLeg0, uHbLeg1;
+varying float vHbUp; // 1 on the horns' height (Oozefang tints them)
 vec3 hbBend(vec3 p, mat4 m, float w) { return mix(p, (m * vec4(p, 1.0)).xyz, w); }
 vec3 hbBendN(vec3 n, mat4 m, float w) { return normalize(mix(n, mat3(m) * n, w)); }
 void hbWeights(vec3 p, out float wH, out float wT, out float wA0, out float wA1, out float wL0, out float wL1) {
@@ -47,6 +49,7 @@ const VERT_POS = /* glsl */`
   transformed = hbBend(transformed, uHbArm0, wA0); transformed = hbBend(transformed, uHbArm1, wA1);
   transformed = hbBend(transformed, uHbLeg0, wL0); transformed = hbBend(transformed, uHbLeg1, wL1);
   transformed = hbBend(transformed, uHbTail, wT); transformed = hbBend(transformed, uHbHead, wH); }
+vHbUp = smoothstep(0.25, 0.36, position.y);
 `;
 // Re-tint in YIQ (sRGB values): rotating the chroma (I, Q) turns the hue, its length is the saturation, Y the brightness.
 // Only pixels whose hue is near the purple fur change; cream horns, claws, white eyes and the red mouth keep theirs.
@@ -65,6 +68,9 @@ const FRAG_TINT = /* glsl */`
   hbY *= mix(1.0, uHbTint.z, hbW);
   vec3 hbOut = vec3(hbY + 0.956 * hbIQ.x + 0.621 * hbIQ.y, hbY - 0.272 * hbIQ.x - 0.647 * hbIQ.y, hbY - 1.106 * hbIQ.x + 1.703 * hbIQ.y);
   diffuseColor.rgb = pow(clamp(hbOut, 0.0, 1.0), vec3(2.2));
+  float hbHornM = vHbUp * smoothstep(0.55, 0.7, hbY) * uHbHorn.w; // the pale horns (the fur up there is dark)
+  diffuseColor.rgb = mix(diffuseColor.rgb, uHbHorn.rgb, hbHornM);
+  totalEmissiveRadiance += uHbHorn.rgb * hbHornM * 0.6;
 }
 `;
 
@@ -87,21 +93,22 @@ function patch(mat, U, tint) {
   mat.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, U);
     sh.vertexShader = VERT_HEAD + sh.vertexShader.replace('#include <beginnormal_vertex>', VERT_NORMAL).replace('#include <begin_vertex>', VERT_POS);
-    if (tint) sh.fragmentShader = 'uniform vec4 uHbTint;\n' + sh.fragmentShader.replace('#include <map_fragment>', FRAG_TINT);
+    if (tint) sh.fragmentShader = 'uniform vec4 uHbTint, uHbHorn;\nvarying float vHbUp;\n' + sh.fragmentShader.replace('#include <map_fragment>', FRAG_TINT);
   };
   mat.customProgramCacheKey = () => (tint ? 'hornbeast' : 'hornbeast-depth');
 }
 
 // src: the loaded model's mesh (assets.js); returns null without it so callers fall back to the procedural monster
 export function buildHornbeast(type, src) {
-  if (!src || type.wyrm || type.pirate || type.alchemist) return null;
+  if (!src) return null;
   const g = new THREE.Group(); const pivot = new THREE.Group(); g.add(pivot);
   const model = new THREE.Group(); model.scale.setScalar(SCALE); model.position.y = -MODEL_MIN_Y * SCALE; pivot.add(model);
   const at = (p) => { const o = new THREE.Group(); o.position.copy(p); model.add(o); return o; };
   const head = at(HEAD_P), tail = at(TAIL_P), arms = FRONT_P.map(at), legs = HIND_P.map(at);
   const tint = tintFor(type.color);
   const U = { uHbHead: { value: new THREE.Matrix4() }, uHbTail: { value: new THREE.Matrix4() }, uHbArm0: { value: new THREE.Matrix4() }, uHbArm1: { value: new THREE.Matrix4() },
-    uHbLeg0: { value: new THREE.Matrix4() }, uHbLeg1: { value: new THREE.Matrix4() }, uHbTint: { value: tint } };
+    uHbLeg0: { value: new THREE.Matrix4() }, uHbLeg1: { value: new THREE.Matrix4() }, uHbTint: { value: tint },
+    uHbHorn: { value: type.alchemist ? new THREE.Vector4(...new THREE.Color('#00ffcc').toArray(), 1) : new THREE.Vector4(0, 0, 0, 0) } };
   const mat = src.material.clone(); patch(mat, U, true);
   mat.userData.liteHook = (l) => patch(l, U, true); // lite.js swaps in a Lambert material on weak phones
   const depth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking }); patch(depth, U, false);
@@ -138,5 +145,9 @@ export function buildHornbeast(type, src) {
   for (let i = 0; i < 4; i++) { const st = M(new THREE.OctahedronGeometry(0.07), toon('#ffe066', { emissive: '#ffcc00', ei: 0.8 }), Math.cos(i * 1.57) * 0.3, 0, Math.sin(i * 1.57) * 0.3, stars, false); st.scale.y = 0.5; }
   const sh = new THREE.Mesh(new THREE.CircleGeometry(1.7, 16), new THREE.MeshBasicMaterial({ color: '#000', transparent: true, opacity: 0.22, depthWrite: false }));
   sh.rotation.x = -Math.PI / 2; sh.position.y = 0.03; g.add(sh);
+  // themed outfits (models.js) are laid out for the procedural monster: adapters map its head and back onto this one
+  const headFit = new THREE.Group(); headFit.position.set(0, -0.085, 0.33); headFit.scale.setScalar(ACC_HEAD); head.add(headFit);
+  const backFit = new THREE.Group(); backFit.position.set(0, 0.16, -0.11); backFit.scale.setScalar(ACC_BODY); pivot.add(backFit);
+  addAccessories(type, headFit, backFit, { ownHorns: true });
   return { group: g, pivot, head, body, eyesClosed, eyesOpen, pupils, brows, mouth, teeth, smile, bubble, arms, feet: legs, tail, stars };
 }
