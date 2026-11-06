@@ -155,6 +155,8 @@ function star(cx, cy, r, rot = -Math.PI / 2) {
   return d + 'Z';
 }
 const FLAGS = {
+  es: '<rect width="30" height="20" fill="#aa151b"/><rect y="5" width="30" height="10" fill="#f1bf00"/>',
+  az: '<rect width="30" height="20" fill="#00b5e2"/><rect y="6.67" width="30" height="6.67" fill="#ef3340"/><rect y="13.33" width="30" height="6.67" fill="#509e2f"/><circle cx="14" cy="10" r="2.6" fill="white"/><circle cx="14.8" cy="9.6" r="2.1" fill="#ef3340"/><circle cx="18" cy="10" r="1" fill="white"/>',
   en: '<rect width="30" height="20" fill="#012169"/><path d="M0 0 30 20M30 0 0 20" stroke="#fff" stroke-width="4"/><path d="M0 0 30 20M30 0 0 20" stroke="#C8102E" stroke-width="1.5"/><path d="M15 0v20M0 10h30" stroke="#fff" stroke-width="6"/><path d="M15 0v20M0 10h30" stroke="#C8102E" stroke-width="3.4"/>',
   zh: `<rect width="30" height="20" fill="#DE2910"/><path fill="#FFDE00" d="${star(5, 5, 3)} ${star(10, 2, 1, 0.4)} ${star(12, 4, 1, 0.9)} ${star(12, 7, 1, -0.4)} ${star(10, 9, 1, 0.2)}"/>`,
   tr: `<rect width="30" height="20" fill="#E30A17"/><circle cx="11" cy="10" r="5" fill="#fff"/><circle cx="12.25" cy="10" r="4" fill="#E30A17"/><path fill="#fff" d="${star(17.2, 10, 2.2, Math.PI)}"/>`,
