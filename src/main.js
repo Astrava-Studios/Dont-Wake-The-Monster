@@ -35,6 +35,7 @@ import { playAstravaIntro } from './astrava-intro/astravaIntro.js';
 import { loadSave, writeSave as writeSaveReal } from './save.js';
 const writeSave = (sv) => { if (!new URLSearchParams(location.search).has('demo')) writeSaveReal(sv); };
 import * as AS from './assets.js';
+import { buildHornbeast } from './hornbeast.js';
 import { icon, monsterFace, hydrateIcons, flag, GOOD_ICON } from './icons.js';
 import { measureRig, dressPlayer, animateCostume, lanternColor } from './costumes.js';
 import { setBonus, stashLoot, collect, lanternStats, buyHouse, chooseHouse } from './hideout.js';
@@ -375,8 +376,9 @@ function addTreasureView(t, delay = 0) {
   g.scale.setScalar(0.001);
   props.treasures.set(t.id, { g, kind: t.kind, bob: Math.random() * 6, spawnAt: time + delay, fly: null, base: 1 });
 }
+const monsterModel = (type) => buildHornbeast(type, AS.hornbeastMesh()) || buildMonster(type);
 function makeMonster(type, home = { x: L.nest.x, z: L.nest.z, yaw: 0 }) {
-  const m = buildMonster(type); m.group.position.set(home.x, 0.15, home.z); world.add(m.group);
+  const m = monsterModel(type); m.group.position.set(home.x, 0.15, home.z); world.add(m.group);
   return { ...m, type, jolt: 0, scale0: type.scale, home };
 }
 
@@ -1134,7 +1136,7 @@ function showGallery() {
     ...procedural.map((k) => ({ label: k + ' (kod)', ok: true, make: () => {
       if (k === 'bookshelf' || k === 'blocks') return buildFurniture(k, k === 'bookshelf' ? 0.6 : 0.32, 0.3);
       if (k === 'duck') return buildDuck(); if (k === 'gem' || k === 'crown') return buildTreasure(k);
-      if (k === 'monster') { const g = buildMonster(MONSTERS[0]).group; g.scale.setScalar(0.35); return g; }
+      if (k === 'monster') { const g = monsterModel(MONSTERS[0]).group; g.scale.setScalar(0.35); return g; }
       return buildPlayer().group;
     } }))];
   const cols = Math.ceil(Math.sqrt(all.length * 1.4)); const sp = 1.7;
