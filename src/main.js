@@ -43,6 +43,7 @@ import { measureRig, dressPlayer, animateCostume, lanternColor } from './costume
 import { setBonus, stashLoot, collect, lanternStats, buyHouse, chooseHouse } from './hideout.js';
 import { setDarkZones, setDarkLight, patchDark } from './darkness.js';
 import { gpuName, detectTier, ladder, createGovernor, measureRefresh } from './perf.js';
+import { setLite, mergeStatic } from './lite.js';
 
 const Q = new URLSearchParams(location.search);
 applyOverrides(location.search);
@@ -82,14 +83,16 @@ document.addEventListener('pointerdown', () => { userTapped = true; sfx.init(); 
 for (const ev of ['touchend', 'click', 'keydown']) document.addEventListener(ev, () => { userTapped = true; sfx.init(); }, { passive: true, capture: true });
 
 // ---------------- renderer / scene / post ----------------
-// perfStep: the dynamic-resolution step the frame-rate governor (perf.js) is on: render scale + shadows on/off
-let perfStep = { scale: 1, shadows: true };
+// perfStep: the step the frame-rate governor (perf.js) is on: shadows off / simple materials / 30 fps cap
+let perfStep = { shadows: true, lite: false, cap: 0 };
 const getQualityRatio = () => {
   const q = save.quality || 'med';
-  const base = q === 'low' ? Math.min(devicePixelRatio, 1.0) : q === 'med' ? Math.min(devicePixelRatio, 1.5)
-    : Math.min(devicePixelRatio, 2.0); // Mobile High: crisp native OLED resolution capped for mobile thermal safety
-  return Math.max(0.5, base * perfStep.scale);
+  if (q === 'low') return Math.min(devicePixelRatio, 1.0);
+  if (q === 'med') return Math.min(devicePixelRatio, 1.5);
+  return Math.min(devicePixelRatio, 2.0); // Mobile High: crisp native OLED resolution capped for mobile thermal safety
 };
+// Low, or the governor's lite step: Lambert instead of PBR materials (lite.js)
+const liteOn = () => save.quality === 'low' || perfStep.lite;
 
 const renderer = new THREE.WebGLRenderer({ canvas: $('game'), antialias: false, powerPreference: 'high-performance', preserveDrawingBuffer: Q.has('sim') || Q.has('gallery') });
 const GPU = gpuName(renderer);
@@ -1211,7 +1214,7 @@ function applyQuality() {
   save.quality = q;
   save.hq = q === 'high';
   scene.environment = q === 'low' ? null : envTex;
-  gov.setSteps(perfLadder()); // also resizes + syncs shadows through applyPerf
+  gov.setSteps(perfLadder()); // also syncs shadows + materials through applyPerf
   applySettings();
   resize();
   syncShadows();
@@ -1237,7 +1240,7 @@ function syncSettings() {
       b.onclick = () => {
         save.qualityAuto = b.dataset.q === 'auto';
         if (!save.qualityAuto) save.quality = b.dataset.q;
-        gov.set(0, 'settings'); // a fresh choice starts sharp; the governor steps down again if it has to
+        gov.set(0, 'settings'); // a fresh choice starts in full; the governor steps down again if it has to
         writeSave(save);
         applyQuality();
         syncSettings();
@@ -1264,18 +1267,22 @@ $('setVibrate').onclick = () => { save.vibrate = !save.vibrate; writeSave(save);
 $('settingsBtn').onclick = () => { hide('menu'); openSettings(); };
 $('pauseSettings').onclick = () => { hide('pause'); openSettings(); };
 $('settingsClose').onclick = () => { writeSave(save); hide('settings'); if (paused) show('pause'); else if (mode === 'menu') show('menu'); };
-// frame-rate governor (perf.js): steps resolution / shadows down while a night runs slow, back up with headroom
-const perfLadder = () => ladder(save.qualityAuto && save.quality !== 'low');
+// frame-rate governor (perf.js): shadows / materials / 30 fps cap while a night runs slow, back up with headroom.
+// It never touches the resolution.
+const perfLadder = () => ladder(save.qualityAuto, save.quality);
+let liteApplied = false;
+function syncLite() { const on = liteOn(); if (on || liteApplied) setLite(scene, on); liteApplied = on; }
 function applyPerf(step, level, why) {
-  perfStep = step; resize(); syncShadows();
+  perfStep = step; syncShadows(); syncLite();
   if (why !== 'steps' && save.perfLevel !== level) { save.perfLevel = level; writeSave(save); }
   if (Q.has('perf')) console.log('[perf]', level, JSON.stringify(step), why);
 }
 const gov = createGovernor({ steps: perfLadder(), level: save.perfLevel || 0, apply: applyPerf });
 perfStep = gov.step();
 // 120 Hz panels: play at 60 fps (half the GPU work and heat); 60 / 90 Hz run at their own rate
-let refreshMs = 16.7, playMinMs = 0;
-measureRefresh((ms) => { refreshMs = Math.min(ms, 16.7); playMinMs = ms < 10 ? 1000 / 62 : 0; }); // boot jank only lengthens frames
+let refreshMs = 16.7, refreshCap = 0;
+measureRefresh((ms) => { refreshMs = Math.min(ms, 16.7); refreshCap = ms < 10 ? 1000 / 60 : 0; }); // boot jank only lengthens frames
+const playMinMs = () => Math.max(refreshCap, perfStep.cap || 0);
 applyQuality();
 document.querySelectorAll('[data-close]').forEach((b) => { b.onclick = () => {
   hide(b.dataset.close);
@@ -1365,14 +1372,31 @@ function audioAmbience(dt) {
   if (left < 12 && Math.random() < dt * 0.8) sfx.bird();
   if (S.state === 'play' && Math.random() < dt / 18) sfx.houseCreak();
 }
-let last = performance.now(), hudT = 0;
+let last = performance.now(), hudT = 0, liteSweepT = 0;
+// Once the furniture has settled in, bake everything in the room that never moves again into one mesh per
+// material (lite.js): ~300 draw calls become a few dozen, the biggest CPU cost on entry-level phones.
+function mergeWorld() {
+  world.userData.merged = true;
+  if (Q.has('nomerge')) return;
+  const dyn = new Set();
+  const add = (x) => { if (!x) return; if (x.isObject3D) { dyn.add(x); return; } if (typeof x === 'object') for (const v of Object.values(x)) if (v && v.isObject3D) dyn.add(v); };
+  for (const v of Object.values(props)) { if (v instanceof Map) v.forEach(add); else if (Array.isArray(v)) v.forEach(add); else add(v); }
+  for (const b of S.bodies || []) if (b.view) dyn.add(b.view.pivot);
+  fxHidden.forEach((o) => dyn.add(o));
+  if (MO) dyn.add(MO.group);
+  const r = mergeStatic(world, (o) => dyn.has(o));
+  if (Q.has('perf')) console.log('[perf] merged', r.before, '→', r.after, 'meshes');
+}
 function frame(now) {
   requestAnimationFrame(frame);
   if (mode !== 'play' && now - last < 1000 / 32) return; // menus, market, hideout: 30 fps is plenty and saves battery
-  if (mode === 'play' && now - last < playMinMs) return;
+  const minMs = mode === 'play' ? playMinMs() : 0;
+  if (minMs && now - last < minMs - 2) return; // -2: rAF timestamps jitter around the vsync
   const raw = (now - last) / 1000;
   let dt = Math.min(0.05, raw); last = now;
-  if (mode === 'play' && !paused && !document.hidden && S && !autoplay) gov.sample(raw, Math.max(refreshMs, playMinMs));
+  if (mode === 'play' && !paused && !document.hidden && S && !autoplay) gov.sample(raw, Math.max(refreshMs, refreshCap));
+  if ((liteSweepT -= raw) <= 0) { liteSweepT = 0.5; if (liteOn()) setLite(scene, true); } // new objects (treasures, costumes) get the simple materials too
+  if (L && S && !world.userData.merged && !world.children.some((g) => g.userData.settle)) mergeWorld();
   if (paused) dt = 0;
   time += dt;
   if (mode === 'play' && S) {
@@ -1445,6 +1469,6 @@ window.GAME = {
   audioReport: () => audioReport(sfx.samples),
   tick(sec, inp) { for (let i = 0; i < sec * 60; i++) { if (mode === 'play' && S) { step(S, 1 / 60, inp || (autoplay ? bot(S, 1 / 60) : input.get())); handleEvents(); if (S.done && mode === 'play') finishNight(); } time += 1 / 60; animate(1 / 60); } updateCamera(1); updateHud(); debugLog(); if (composer) composer.render(1 / 60); else renderer.render(scene, camera); },
   setAutoplay(v) { autoplay = v; },
-  get perf() { return { gpu: GPU, quality: save.quality, auto: save.qualityAuto, level: gov.level, step: perfStep, refreshMs, playMinMs, pixelRatio: renderer.getPixelRatio(), calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, programs: renderer.info.programs.length }; }, gov,
+  get perf() { return { gpu: GPU, quality: save.quality, auto: save.qualityAuto, level: gov.level, step: perfStep, lite: liteOn(), refreshMs, playMinMs: playMinMs(), pixelRatio: renderer.getPixelRatio(), calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, programs: renderer.info.programs.length }; }, gov,
 };
 window.__dwtm = window.GAME;

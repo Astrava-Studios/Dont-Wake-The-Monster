@@ -14,6 +14,7 @@ export function setDarkZones(zones = []) {
 }
 export function setDarkLight(x, y, z, r) { DARK.uDkLight.value.set(x, y, z, r); }
 
+export function patchDarkMaterial(m) { patchMaterial(m); }
 function patchMaterial(m) {
   if (!m || m.userData.dk || !(m.isMeshStandardMaterial || m.isMeshLambertMaterial || m.isMeshPhongMaterial)) return;
   m.userData.dk = true;

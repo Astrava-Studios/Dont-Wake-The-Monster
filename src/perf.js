@@ -1,11 +1,11 @@
 // Keeping the game playable on entry-level phones.
 //  1. detectTier(): a starting quality from the device (GPU name, RAM, CPU cores), used while the player
 //     leaves Graphics on "Auto". Weak Mali / old Adreno / PowerVR GPUs start on Low.
-//  2. createGovernor(): dynamic resolution. While a night is played it watches the median frame time; when
-//     frames run slow it steps down a ladder (smaller render scale, on Auto also no shadows), and when there is
+//  2. createGovernor(): while a night is played it watches the median frame time; when frames run slow it steps
+//     down a ladder (on Auto: shadows off, then simple materials; last: a steady 30 fps), and when there is
 //     headroom again it slowly steps back up. The step it settles on is remembered for the next launch.
-//     A step that does not make frames faster (a browser capped at 30 fps in battery saver) is undone, so a
-//     capped phone isn't blurred for nothing.
+//     The resolution is never lowered: a blurry picture made the game unplayable. A step that does not make
+//     frames faster (a browser already capped at 30 fps in battery saver) is undone.
 
 const WEAK_GPU = /mali-(4\d\d|t[678]\d\d|g31|g51|g52|g57)|adreno[^0-9]*([1-5]\d\d|60\d|61[0-2])\b|powervr|sgx|ge8\d\d\d|vivante|videocore|llvmpipe|swiftshader/i;
 
@@ -26,13 +26,18 @@ export function detectTier(renderer, isTouch) {
   return 'med';
 }
 
-// The ladder: each step is { scale, shadows }. scale multiplies the quality's pixel ratio; shadows=false turns
-// the shadow map off on top of what the quality allows. dropShadows (Auto with shadows on): after the first
-// small resolution step the shadows go (big cost, small loss), only then more pixels.
-export function ladder(dropShadows) {
-  const s = [{ scale: 1, shadows: true }, { scale: 0.85, shadows: true }];
-  if (dropShadows) s.push({ scale: 0.85, shadows: false });
-  for (const scale of [0.72, 0.62, 0.55]) s.push({ scale, shadows: !dropShadows });
+// The ladder: each step is { shadows, lite, cap }. shadows=false / lite=true switch the shadow map off / use the
+// simple materials (lite.js) on top of what the quality does anyway; cap = shortest frame in ms (33.3 = 30 fps).
+// auto: the player left Graphics on Auto, so the governor may take shadows and materials down too. A steady
+// 30 fps feels smoother than a frame rate jumping between 25 and 50, so it is the last step for everyone.
+export const CAP30 = 1000 / 30;
+export function ladder(auto, quality) {
+  const s = [{ shadows: true, lite: false, cap: 0 }];
+  if (auto && quality !== 'low') {
+    s.push({ shadows: false, lite: false, cap: 0 });
+    s.push({ shadows: false, lite: true, cap: 0 });
+  }
+  s.push({ ...s[s.length - 1], cap: CAP30 });
   return s;
 }
 
@@ -46,7 +51,7 @@ export function createGovernor({ steps, level = 0, apply }) {
     lv = Math.max(0, Math.min(G.steps.length - 1, lv));
     if (lv === G.level) return false;
     G.level = lv; apply(G.step(), G.level, why);
-    G.frames.length = 0; G.acc = 0; G.warm = 0.6; // let the new size / shaders settle before judging it
+    G.frames.length = 0; G.acc = 0; G.warm = 0.6; // let new shaders settle before judging it
     return true;
   };
   G.setSteps = (s) => { G.steps = s; G.level = Math.min(G.level, s.length - 1); apply(G.step(), G.level, 'steps'); };
@@ -60,7 +65,7 @@ export function createGovernor({ steps, level = 0, apply }) {
     if (G.acc < WINDOW) return;
     const f = G.frames.sort((a, b) => a - b), med = f[f.length >> 1]; // median: one hitch doesn't count
     G.frames.length = 0; G.acc = 0;
-    const T = Math.max(frameMs || 16.7, 1000 / 121);
+    const T = Math.max(frameMs || 16.7, 1000 / 121, G.step().cap || 0);
     if (G.probe) { // judge the last step down: did it buy anything?
       if (G.probe.med / med < 1.06) { G.set(G.probe.from, 'no gain'); G.frozen = 30; }
       G.probe = null; return;
@@ -70,7 +75,8 @@ export function createGovernor({ steps, level = 0, apply }) {
       if (G.justUp) G.upFails++; // the last step up didn't hold: wait longer before the next try
       G.justUp = false; G.good = 0;
       const from = G.level;
-      G.set(G.level + 1, 'slow ' + med.toFixed(1) + 'ms'); G.probe = { from, med };
+      G.set(G.level + 1, 'slow ' + med.toFixed(1) + 'ms');
+      if (!G.step().cap) G.probe = { from, med }; // a 30 fps cap is judged by its smoothness, not by speed
     } else if (!slow && med <= Math.max(T * 1.12, 1000 / 55) && G.level > 0) {
       G.justUp = false;
       if (++G.good >= 6 * 2 ** Math.min(G.upFails, 4)) { G.good = 0; G.set(G.level - 1, 'fast ' + med.toFixed(1) + 'ms'); G.justUp = true; }
