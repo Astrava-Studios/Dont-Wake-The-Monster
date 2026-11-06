@@ -476,6 +476,17 @@ export class Sfx {
   stomp(x, z) { if (this.sample('stomp', { x, z, vol: 0.8 })) return; this.tone(70 * jit(0.1), 0.18, { vol: 0.28, slide: 38, x, z }); this.noise(0.09, { freq: 300, vol: 0.08, x, z }); }
   yawn(x, z) { if (this.sample('yawn', { x, z, vol: 0.7 }) || this.recorded('yawn')) return; this.tone(240, 1.3, { vol: 0.16, slide: 110, lp: 900, att: 0.3, x, z }); }
   groan(x, z) { if (this.sample('groan', { x, z, vol: 0.7 }) || this.recorded('groan')) return; this.tone(115, 0.7, { vol: 0.22, slide: 75, lp: 400, x, z }); this.noise(0.4, { freq: 260, vol: 0.08, x, z }); }
+  // the thief's scream: a short cartoon "AAAH!" (sawtooth voice through two vowel formants, with a wobble)
+  scream(x, z) {
+    if (!this.ok) return; this.duck(0.2, 1.2);
+    const c = this.ctx, t = c.currentTime, out = this.out({ x, z }), g = c.createGain(); this.env(g, t, 0.5, 0.95, 0.03);
+    const o = c.createOscillator(); o.type = 'sawtooth';
+    o.frequency.setValueAtTime(420, t); o.frequency.exponentialRampToValueAtTime(760, t + 0.18); o.frequency.exponentialRampToValueAtTime(520, t + 0.95);
+    const lfo = c.createOscillator(), lg = c.createGain(); lfo.frequency.value = 7; lg.gain.value = 28; lfo.connect(lg); lg.connect(o.frequency);
+    for (const [ff, q] of [[850, 5], [1250, 6]]) { const f = c.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = ff; f.Q.value = q; o.connect(f); f.connect(g); }
+    g.connect(out); o.start(t); lfo.start(t); o.stop(t + 1.05); lfo.stop(t + 1.05);
+    this.noise(0.5, { type: 'bandpass', freq: 2400, q: 1, vol: 0.05, att: 0.02, x, z });
+  }
   rustle(x, z) { this.noise(0.3, { type: 'bandpass', freq: 650, q: 2, vol: 0.09, x, z }); }
   catHiss(x, z) {
     this.noise(0.38, { type: 'bandpass', freq: 4500, q: 2.5, vol: 0.16, x, z });

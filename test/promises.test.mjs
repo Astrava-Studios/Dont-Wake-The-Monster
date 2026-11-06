@@ -1,7 +1,7 @@
 // Promise tests: every number or claim the player reads must be true in the rules.
 import assert from 'node:assert/strict';
 import { RULES } from '../src/rules.js';
-import { createSim, step, stepNoise, heardNoise, playerSpeed, dropLoot, useLullaby, nightResult, wakeUp, weightFactor } from '../src/sim.js';
+import { createSim, step, stepNoise, heardNoise, playerSpeed, dropLoot, useLullaby, nightResult, wakeUp, weightFactor, scream, bedEmpty } from '../src/sim.js';
 import { MONSTERS, MODIFIERS, generateLevel } from '../src/level.js';
 import { SHOP, getTips } from '../src/texts.js';
 import { setLang, LANGS, checkDictionaries } from '../src/i18n.js';
@@ -94,13 +94,13 @@ t('3 stars = escaped + never woke it + took everything; stars pay reputation per
 });
 t('caught: tonight\'s loot is lost', () => { const S = sim(); S.state = 'caught'; S.bag = [{ kind: 'book', value: 50, weight: 1 }]; const r = nightResult(S); assert.ok(!r.ok && r.items.length === 0 && r.lost.length === 1); });
 t('items are only taken by holding Take next to them, never by walking over', () => {
-  const S = sim(); const it = S.treasures[0]; S.player.x = it.x; S.player.z = it.z;
+  const S = sim(); const it = S.treasures.find((x) => !x.onBed); S.player.x = it.x; S.player.z = it.z;
   for (let i = 0; i < 30; i++) step(S, 1 / 30, { x: 0, y: 0 }); assert.ok(it.alive, 'standing without Take');
   for (let i = 0; i < Math.ceil(it.take * 30) + 5 && it.alive; i++) step(S, 1 / 30, { x: 0, y: 0, take: true });
   assert.ok(!it.alive && S.bag.length === 1);
 });
 t('rummaging is visible: taking while it looks counts as moving', () => {
-  const S = createSim({ night: 2, seed: 4 }); const it = S.treasures.find((x) => !x.dropped);
+  const S = createSim({ night: 2, seed: 4 }); const it = S.treasures.find((x) => !x.dropped && !x.onBed);
   S.player.x = it.x; S.player.z = it.z; S.wake = 50; S.peek = 'open'; S.peekT = 2; S.hidden = false;
   const w = S.wake; step(S, 1 / 30, { x: 0, y: 0, take: true }); assert.ok(S.wake > w || S.hidden);
 });
@@ -117,6 +117,51 @@ for (const { id } of LANGS) t(`[${id}] shop percentages and modifier multipliers
   assert.ok(MODIFIERS.find((m) => m.id === 'short').desc.includes(String(RULES.mods.short)));
   for (const m of MONSTERS) assert.ok(m.name && m.trait, `${id}: monster ${m.id} has no text`);
   setLang('tr');
+});
+
+// ---- scream + crown on the bed
+const crownOf = (S) => S.treasures.find((x) => x.kind === 'crown');
+const runFor = (S, sec, inp = { x: 0, y: 0 }) => { for (let i = 0; i < sec * 30 && !S.done; i++) step(S, 1 / 30, inp); };
+t('📣 the crown lies on the bed and cannot be taken while the monster is in it', () => {
+  const S = sim(); const c = crownOf(S); assert.ok(c && c.onBed);
+  assert.ok(Math.hypot(c.x - S.L.nest.x, c.z - S.L.nest.z) < S.L.nest.r, 'crown is on the bed');
+  S.player.x = c.x; S.player.z = c.z; runFor(S, c.take + 1, { x: 0, y: 0, take: true });
+  assert.ok(c.alive, 'still there'); assert.ok(!bedEmpty(S));
+});
+t('📣 one scream per night, only while it sleeps', () => {
+  const S = sim(); assert.equal(S.screams, RULES.scream.perNight);
+  assert.ok(scream(S)); assert.equal(S.state, 'lure'); assert.ok(S.woke);
+  assert.ok(!scream(S), 'no second scream');
+  const C = sim(); wakeUp(C, 'noise'); assert.ok(!scream(C), 'not during a chase');
+});
+t('📣 it runs to the scream, searches, and goes back to bed if it does not find you', () => {
+  const S = sim(); const sx = S.player.x, sz = S.player.z; scream(S);
+  S.L.inDark = () => true; // the player stays out of sight (as in a dark corner) and keeps still
+  let searched = false, minD = 1e9;
+  for (let i = 0; i < 30 * 40 && S.state !== 'play'; i++) {
+    S.player.x = -sx * 0.8; S.player.z = sz; step(S, 1 / 30, { x: 0, y: 0 }); // slipped away to the far side, stands quietly
+    if (S.monster.state === 'search') { searched = true; minD = Math.min(minD, Math.hypot(S.monster.x - sx, S.monster.z - sz)); }
+  }
+  assert.ok(searched, 'it searched'); assert.ok(minD < 2.5, 'near the scream spot');
+  assert.equal(S.state, 'play'); assert.equal(S.monster.state, 'sleep');
+});
+t('📣 after the scream the crown can be taken from the empty bed', () => {
+  const S = sim(); const c = crownOf(S); scream(S);
+  runFor(S, 1.2); assert.ok(bedEmpty(S), 'it left the bed');
+  S.player.x = c.x; S.player.z = c.z;
+  for (let i = 0; i < 30 * (c.take + 1) && c.alive; i++) { S.grump = 0; S.monster.state = 'search'; S.monster.t = 0; S.player.inWardrobe = true; step(S, 1 / 30, { x: 0, y: 0, take: true }); }
+  assert.ok(!c.alive, 'crown taken');
+});
+t('📣 standing where you screamed gets you spotted and chased', () => {
+  const S = sim(); scream(S); runFor(S, 8); assert.ok(['chase', 'caught'].includes(S.state));
+});
+t('📣 escaping after a scream pays the bold bonus, never the stealth one', () => {
+  const S = createSim({ night: 3, seed: 3 }); scream(S); S.state = 'escaped'; S.bag = [{ kind: 'book', value: 50, weight: 1 }];
+  const r = nightResult(S); assert.ok(r.bold && !r.stealth); assert.equal(r.bonus, RULES.score.boldBonus * 3); assert.equal(r.stars, 2);
+  assert.ok(RULES.score.boldBonus < RULES.score.stealthBonus);
+});
+t('📣 a lullaby while it hunts sends it back to bed', () => {
+  const S = sim(); S.lull = 1; scream(S); runFor(S, 1); assert.ok(useLullaby(S)); assert.equal(S.state, 'return');
 });
 
 console.log(`promises: ${n} tests passed`);

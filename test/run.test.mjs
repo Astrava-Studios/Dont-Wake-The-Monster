@@ -36,7 +36,7 @@ const sim = (o = {}) => createSim({ night: 2, seed: 3, ...o });
 t('Silent slippers lower step noise by the % sold', () => { assert.ok(Math.abs(stepNoise(sim({ gear: { slippers: true } }), 1, 'wood') / stepNoise(sim(), 1, 'wood') - RULES.gear.slippers.stepNoise) < 1e-9); });
 t('Big bag carries more', () => { assert.equal(sim({ gear: { bigbag: true } }).capacity - sim().capacity, RULES.gear.bigbag.capacity); });
 t('a full bag refuses the next item', () => {
-  const S = sim(); const it = S.treasures[0]; S.weight = S.capacity; S.player.x = it.x; S.player.z = it.z;
+  const S = sim(); const it = S.treasures.find((x) => !x.onBed); S.weight = S.capacity; S.player.x = it.x; S.player.z = it.z;
   for (let i = 0; i < 120; i++) step(S, 1 / 30, { x: 0, y: 0, take: true }); assert.ok(it.alive && S.player.full && !bagFits(S, it));
 });
 t('sleep dust: no peeking and noise muffled', () => {
@@ -44,7 +44,7 @@ t('sleep dust: no peeking and noise muffled', () => {
   S.wake = 90; S.peekNext = 0; step(S, 1 / 30, { x: 0, y: 0 }); assert.equal(S.peek, 'none'); assert.equal(S.kit.length, 0);
 });
 t('lockpick: the next item takes half as long', () => {
-  const S = sim({ kit: ['lockpick'] }); const it = S.treasures[0]; S.player.x = it.x; S.player.z = it.z; useItem(S, 0);
+  const S = sim({ kit: ['lockpick'] }); const it = S.treasures.find((x) => !x.onBed); S.player.x = it.x; S.player.z = it.z; useItem(S, 0);
   let k = 0; while (it.alive && k++ < 400) step(S, 1 / 30, { x: 0, y: 0, take: true });
   assert.ok(k <= Math.ceil(it.take * RULES.consumables.lockpick.takeMult * 30) + 3, `${k} frames`); assert.ok(!S.lockpick);
 });

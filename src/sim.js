@@ -25,6 +25,7 @@ export function createSim({ night = 1, seed = 1, upgrades = {}, gear = {}, kit =
     leftExit: false, quiet: 0, stepT: 0, snoreT: L.rng() * 3, snoring: false,
     peek: 'none', peekT: 0, peekNext: R.peek.first, hidden: false, seen: 0,
     feather: 0, lull: up.lullaby * U.lullaby.per, woke: false, chaseT: 0, dawn: false, heartT: 0, endT: 0, emptyHint: false,
+    screams: R.scream.perNight, screamed: false,
     player: { x: L.start.x, z: L.start.z, facing: -L.exit.side * Math.PI / 2, m: 0, opening: false },
     monster: {
       x: L.nest.x, z: L.nest.z, homeX: L.nest.x, homeZ: L.nest.z, yaw: 0, state: 'sleep', t: 0, stun: 0, path: null, pathT: 0,
@@ -39,7 +40,7 @@ export function createSim({ night = 1, seed = 1, upgrades = {}, gear = {}, kit =
     nextId: () => ++id,
   };
   const vm = L.valueMult * (1 + U.charm.per * up.charm) * (hasRelic('golden_compass') ? 1.25 : 1);
-  for (const it of L.items) S.treasures.push(makeTreasure(S, it.kind, it.x, it.z, Math.round(it.value * vm)));
+  for (const it of L.items) { const t = makeTreasure(S, it.kind, it.x, it.z, Math.round(it.value * vm)); if (it.onBed) t.onBed = true; S.treasures.push(t); }
   S.total = S.treasures.length;
   S.bodies = L.obstacles.filter((o) => o.loose).map((o) => makeBody(o.kind, o.x, o.z, 0, o));
   for (const d of L.ducks) S.ducks.push({ id: S.nextId(), x: d.x, z: d.z, alive: true, vx: 0, vz: 0 });
@@ -96,8 +97,20 @@ export const bagFits = (S, t) => S.weight + t.weight <= S.capacity;
 // what an item is worth now (cracks lower it)
 export const itemWorth = (b) => Math.round(b.value * (b.cond ?? 1));
 
+// the monster is out of bed: an item lying on the bed (the crown) can only be taken then
+export const bedEmpty = (S) => dist(S.monster.x, S.monster.z, S.monster.homeX, S.monster.homeZ) > S.L.nest.r;
+// awake states in which the player can still move and act
+export const ACTIVE = ['play', 'wakeup', 'chase', 'return', 'lure'];
+
 export function addNoise(S, n, x, z, ring = true) {
   if (ring && n > 0.5) emit(S, 'noise', { x, z, n });
+  // hunting the scream: it listens from where it stands now, and enough noise gives you away
+  if (S.state === 'lure') {
+    const N = RULES.noise, d = dist(x, z, S.monster.x, S.monster.z);
+    S.grump = (S.grump || 0) + n * clamp(N.distNear - d / N.distFalloff, N.distFar, N.distNear) * S.L.monster.hearing;
+    if (S.grump >= RULES.scream.hear) startChase(S);
+    return;
+  }
   // walking back to bed it is still grumpy: enough noise and it turns around and chases again
   if (S.state === 'return' && S.monster.state === 'return') {
     S.grump = (S.grump || 0) + heardNoise(S, n, x, z);
@@ -124,9 +137,35 @@ export function wakeUp(S, reason) {
   emit(S, 'wake', { reason });
 }
 
+// it found you while hunting the scream: a normal chase
+function startChase(S) {
+  const mo = S.monster; S.grump = 0;
+  // a startled "!" first (wakeup state, a little longer than waking up): being seen is a head start, not a sure catch
+  S.state = 'chase'; mo.state = 'wakeup'; mo.path = null; mo.t = -RULES.scream.react; S.chaseT = S.L.chaseTime;
+  emit(S, 'spotted', { x: mo.x, z: mo.z });
+}
+// can the hunting monster see the player right now?
+function spots(S, range) {
+  const mo = S.monster, p = S.player, d = dist(mo.x, mo.z, p.x, p.z);
+  if (d < RULES.chase.catchRadius * 0.75) return true; // walked right into you
+  return d < range && !p.inWardrobe && !S.L.inDark(p.x, p.z) && !blockedLOS(S.L, mo.x, mo.z, p.x, p.z);
+}
+
 // ---------- player actions ----------
+// scream: wakes the monster on purpose; it runs to the spot you screamed from and looks around for you.
+// Hide (dark, wardrobe, behind tall furniture) or slip away quietly, and take the crown from its empty bed.
+export function scream(S) {
+  if (S.screams <= 0 || S.state !== 'play') return false;
+  const p = S.player, mo = S.monster;
+  S.screams--; S.screamed = true; S.woke = true; S.wake = 100; S.peek = 'none'; S.sleep = 0; S.grump = 0;
+  S.state = 'lure'; S.dawn = false; S.chaseT = S.L.chaseTime;
+  mo.state = 'wakeup'; mo.t = 0; mo.sleepwalkReturn = false; mo.path = null; mo.lure = { x: p.x, z: p.z };
+  emit(S, 'scream', { x: p.x, z: p.z });
+  emit(S, 'wake', { reason: 'scream' });
+  return true;
+}
 export function dropLoot(S) {
-  if (!S.bag.length || !['play', 'chase', 'wakeup', 'return'].includes(S.state)) return false;
+  if (!S.bag.length || !ACTIVE.includes(S.state)) return false;
   let hi = 0; S.bag.forEach((b, i) => { if (b.weight > S.bag[hi].weight || (b.weight === S.bag[hi].weight && b.value < S.bag[hi].value)) hi = i; });
   const it = S.bag.splice(hi, 1)[0]; S.weight -= it.weight; S.value -= it.value; S.collected--;
   const p = S.player; const back = { x: p.x - Math.sin(p.facing) * 0.9, z: p.z - Math.cos(p.facing) * 0.9 };
@@ -144,8 +183,12 @@ export function useLullaby(S) {
   S.lull--; return lullabyEffect(S);
 }
 function lullabyEffect(S, dry) {
-  if (!['play', 'chase', 'wakeup'].includes(S.state)) return false;
+  if (!['play', 'chase', 'wakeup', 'lure'].includes(S.state)) return false;
   if (dry) return true;
+  if (S.state === 'lure') { // hunting the scream: the lullaby lulls it straight back to bed
+    S.state = 'return'; S.monster.state = 'return'; S.monster.path = null; S.grump = 0;
+    emit(S, 'lullaby', { mode: 'calm' }); emit(S, 'giveUp'); return true;
+  }
   if (S.state === 'play') {
     S.wake = Math.max(0, S.wake - RULES.calm.lullaby);
     S.peek = 'none'; S.peekNext = 5;
@@ -161,13 +204,13 @@ function lullabyEffect(S, dry) {
 // use the consumable in kit slot i: sleep dust, feather, lullaby, lockpick, smoke bomb
 export function useItem(S, i) {
   const kind = S.kit[i]; const C = RULES.consumables; if (!kind) return false;
-  const active = ['play', 'chase', 'wakeup', 'return'].includes(S.state);
+  const active = ACTIVE.includes(S.state);
   if (!active) return false;
   if (kind === 'sleepdust') { if (S.state !== 'play') return false; S.sleep = C.sleepdust.time * (S.bonus.kitTime || 1); S.peek = 'none'; S.peekNext = Math.max(S.peekNext, S.sleep); }
   else if (kind === 'feather') S.feather = C.feather.time * (S.bonus.kitTime || 1);
   else if (kind === 'lullaby') { if (!lullabyEffect(S)) return false; }
   else if (kind === 'lockpick') { if (S.lockpick) return false; S.lockpick = true; }
-  else if (kind === 'smoke') { if (!['chase', 'wakeup'].includes(S.state)) return false; S.monster.stun = C.smoke.stun; }
+  else if (kind === 'smoke') { if (!['chase', 'wakeup', 'lure'].includes(S.state)) return false; S.monster.stun = C.smoke.stun; }
   S.kit.splice(i, 1); emit(S, 'use', { kind });
   return true;
 }
@@ -184,7 +227,7 @@ export function step(S, dt, input = { x: 0, y: 0 }) {
   const R = RULES, PR = R.player, L = S.L, p = S.player, mo = S.monster;
   S.t += dt; if (S.seen > 0) S.seen -= dt;
   const st = S.state;
-  const canMove = ['play', 'wakeup', 'chase', 'return'].includes(st);
+  const canMove = ACTIVE.includes(st);
   const ix = canMove ? input.x : 0, iy = canMove ? input.y : 0;
   const m = Math.min(1, Math.hypot(ix, iy)); p.m = m;
   const px0 = p.x, pz0 = p.z;
@@ -193,7 +236,7 @@ export function step(S, dt, input = { x: 0, y: 0 }) {
     const sp = playerSpeed(S, m); const dx = ix / m, dz = iy / m;
     p.x += dx * sp * dt; p.z += dz * sp * dt;
     let dd = Math.atan2(dx, dz) - p.facing; dd = Math.atan2(Math.sin(dd), Math.cos(dd)); p.facing += dd * Math.min(1, dt * 14);
-    collide(L, p, PR.radius, mo.state === 'sleep' || mo.state === 'return');
+    collide(L, p, PR.radius, !bedEmpty(S));
     S.stepT += dt * (PR.stepsBase + m * PR.stepsPerMag);
     if (S.stepT >= 1) {
       S.stepT -= 1;
@@ -226,6 +269,7 @@ export function step(S, dt, input = { x: 0, y: 0 }) {
     for (const t of S.treasures) {
       if (!t.alive) continue;
       if (t.cool > 0) { t.cool -= dt; continue; }
+      if (t.onBed && !bedEmpty(S)) continue;
       const d = dist(t.x, t.z, p.x, p.z);
       if (d < bd) { bd = d; best = t; }
     }
@@ -279,7 +323,7 @@ export function step(S, dt, input = { x: 0, y: 0 }) {
     p.nearWardrobe = nearWardrobe ? nearWardrobe : null;
     const wasIn = p.inWardrobe;
     // slip inside only while sneaking, after standing still a moment, and not when an item is right there
-    p.inWardrobe = !!(nearWardrobe && st === 'play' && m < 0.05 && !p.opening && !p.near && (wasIn || S.quiet > PR.wardrobeAfter));
+    p.inWardrobe = !!(nearWardrobe && (st === 'play' || st === 'lure') && m < 0.05 && !p.opening && !p.near && (wasIn || S.quiet > PR.wardrobeAfter));
     if (p.inWardrobe) S.hidden = true;
     if (!wasIn && p.inWardrobe) emit(S, 'wardrobeEnter', { x: nearWardrobe.x, z: nearWardrobe.z });
     if (wasIn && !p.inWardrobe) emit(S, 'wardrobeExit', { x: nearWardrobe ? nearWardrobe.x : p.x, z: nearWardrobe ? nearWardrobe.z : p.z });
@@ -297,7 +341,7 @@ export function step(S, dt, input = { x: 0, y: 0 }) {
   if (dExit > 1.5) S.emptyHint = false;
 
   // dawn
-  if ((S.state === 'play' || S.state === 'return') && S.t >= L.dawnTime) { S.state = 'play'; emit(S, 'alarm'); wakeUp(S, 'dawn'); }
+  if (['play', 'return', 'lure'].includes(S.state) && S.t >= L.dawnTime) { S.state = 'play'; emit(S, 'alarm'); wakeUp(S, 'dawn'); }
 
   // sleeping monster: snore rhythm + peeking
   if (S.state === 'play') {
@@ -405,7 +449,28 @@ function stepMonster(S, dt) {
     }
     return;
   }
-  if (mo.state === 'wakeup') { if (mo.t > CH.wakeDelay) { mo.state = 'chase'; S.state = 'chase'; mo.path = null; emit(S, 'chase'); } return; }
+  if (mo.state === 'wakeup') {
+    if (mo.t > CH.wakeDelay) {
+      if (S.state === 'lure') { mo.state = 'lure'; mo.t = 0; mo.path = null; }
+      else { mo.state = 'chase'; S.state = 'chase'; mo.path = null; emit(S, 'chase'); }
+    }
+    return;
+  }
+  // scream: run to where it came from, then look around; spotting you starts a chase, otherwise back to bed
+  if (mo.state === 'lure' || mo.state === 'search') {
+    const SC = RULES.scream;
+    if (S.state !== 'lure') return;
+    if (mo.stun > 0) { mo.stun -= dt; return; }
+    if (spots(S, mo.state === 'search' ? SC.see : SC.seeTravel)) { startChase(S); return; }
+    if (mo.state === 'lure') {
+      moveMonster(S, mo.lure.x, mo.lure.z, S.L.chaseSpeed, dt);
+      if (dist(mo.x, mo.z, mo.lure.x, mo.lure.z) < 1.2 || mo.t > SC.lureMax) { mo.state = 'search'; mo.t = 0; mo.searchYaw = mo.yaw; emit(S, 'search', { x: mo.x, z: mo.z }); }
+    } else {
+      mo.yaw = mo.searchYaw + Math.sin(mo.t * 1.9) * 2.2; // turns its head left and right
+      if (mo.t > SC.search) { mo.state = 'return'; S.state = 'return'; mo.path = null; S.grump = 0; emit(S, 'giveUp'); }
+    }
+    return;
+  }
   if (mo.state === 'chase') {
     if (S.state !== 'chase') return;
     if (mo.stun > 0) { mo.stun -= dt; return; }
@@ -423,6 +488,8 @@ function stepMonster(S, dt) {
     if (dist(mo.x, mo.z, mo.homeX, mo.homeZ) < 0.4) {
       mo.state = 'sleep'; mo.yaw = 0; mo.x = mo.homeX; mo.z = mo.homeZ;
       if (S.state === 'return') S.state = 'play';
+      // it finds you lying in its bed
+      if (S.state === 'play' && dist(S.player.x, S.player.z, mo.homeX, mo.homeZ) < S.L.nest.r + RULES.player.radius) { mo.sleepwalkReturn = false; wakeUp(S, 'bed'); return; }
       // back from a chase it sleeps lightly; back from sleepwalking nothing changed (the wake meter stays)
       if (!mo.sleepwalkReturn) { S.wake = CH.sleepWake; S.peekNext = RULES.peek.first; }
       mo.sleepwalkReturn = false; emit(S, 'asleep');
@@ -462,7 +529,7 @@ function stepProps(S, dt, px0, pz0, mx0, mz0) {
     emit(S, type, e);
     if (e.who !== 'monster' && e.n > 0) addNoise(S, e.n, e.x, e.z, type === 'topple');
   });
-  p.x = pl.x; p.z = pl.z; collide(S.L, p, RULES.player.radius, mo.state === 'sleep' || mo.state === 'return');
+  p.x = pl.x; p.z = pl.z; collide(S.L, p, RULES.player.radius, !bedEmpty(S));
 }
 
 // ---------- night result ----------
@@ -471,8 +538,9 @@ export function nightResult(S) {
   const SC = RULES.score;
   if (S.state === 'escaped') {
     const stealth = !S.woke, sweep = S.collected >= S.total * SC.nearSweepAt;
-    const bonus = (stealth ? SC.stealthBonus : 0) * S.night + (sweep ? SC.sweepBonus : 0) * S.night;
-    return { ok: true, items: S.bag.map(({ ct, ...b }) => ({ ...b })), stealth, sweep, bonus, stars: 1 + (stealth ? 1 : 0) + (sweep ? 1 : 0) };
+    const bold = !!S.screamed; // woke it on purpose and still got away: pays a little, never as much as staying unseen
+    const bonus = (stealth ? SC.stealthBonus : 0) * S.night + (sweep ? SC.sweepBonus : 0) * S.night + (bold ? SC.boldBonus : 0) * S.night;
+    return { ok: true, items: S.bag.map(({ ct, ...b }) => ({ ...b })), stealth, sweep, bold, bonus, stars: 1 + (stealth || bold ? 1 : 0) + (sweep ? 1 : 0) };
   }
   return { ok: false, items: [], lost: S.bag.map((b) => ({ ...b })), bonus: 0, stars: 0 };
 }

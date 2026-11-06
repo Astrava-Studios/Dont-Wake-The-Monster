@@ -49,6 +49,7 @@ export function createBot({ greed = 9, careful = true } = {}) {
       let best = 1e9;
       for (const t of S.treasures) {
         if (!t.alive || t.cool > 0) continue;
+        if (t.onBed) continue; // the crown on the bed needs a scream first; the bot never screams
         if (t.take > 2 && S.wake > 55) continue; // skip long jobs when it is restless
         if (S.weight + t.weight > S.capacity) continue; // does not fit in the bag
         const v = d(t.x, t.z, p.x, p.z) - t.value / 40;
