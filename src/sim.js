@@ -461,13 +461,14 @@ function stepMonster(S, dt) {
     const SC = RULES.scream;
     if (S.state !== 'lure') return;
     if (mo.stun > 0) { mo.stun -= dt; return; }
+    S.grump = Math.max(0, (S.grump || 0) - SC.hearDecay * dt); // faint noises fade: careful rummaging far away goes unheard
     if (spots(S, mo.state === 'search' ? SC.see : SC.seeTravel)) { startChase(S); return; }
     if (mo.state === 'lure') {
       moveMonster(S, mo.lure.x, mo.lure.z, S.L.chaseSpeed, dt);
       if (dist(mo.x, mo.z, mo.lure.x, mo.lure.z) < 1.2 || mo.t > SC.lureMax) { mo.state = 'search'; mo.t = 0; mo.searchYaw = mo.yaw; emit(S, 'search', { x: mo.x, z: mo.z }); }
     } else {
       mo.yaw = mo.searchYaw + Math.sin(mo.t * 1.9) * 2.2; // turns its head left and right
-      if (mo.t > SC.search) { mo.state = 'return'; S.state = 'return'; mo.path = null; S.grump = 0; emit(S, 'giveUp'); }
+      if (mo.t > SC.search * (S.searchMult || 1)) { mo.state = 'return'; S.state = 'return'; mo.path = null; S.grump = 0; emit(S, 'giveUp'); }
     }
     return;
   }
