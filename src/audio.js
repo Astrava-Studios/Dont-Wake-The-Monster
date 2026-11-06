@@ -227,7 +227,7 @@ export class Sfx {
     }
     e.last = i;
     const c = this.ctx, src = c.createBufferSource(); src.buffer = e.bufs[i];
-    const fit = o.len ? Math.min(1.15, Math.max(0.85, e.bufs[i].duration / o.len)) : 1;
+    const fit = o.len ? Math.min(1.3, Math.max(0.8, e.bufs[i].duration / o.len)) : 1;
     src.playbackRate.value = (o.rate || 1) * fit * (e.pitch[0] + Math.random() * (e.pitch[1] - e.pitch[0]));
     const g = c.createGain(); g.gain.value = (o.vol ?? 0.6) * e.vol; src.connect(g); g.connect(this.out(o));
     src.start(c.currentTime + (o.delay || 0));

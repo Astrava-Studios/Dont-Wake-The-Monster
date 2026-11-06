@@ -20,5 +20,5 @@
   "toggle": {"files": ["ui_switch-a"], "vol": 0.7, "pitch": [1,1]},
   "confirm": {"files": ["confirmation_001", "confirmation_002"], "vol": 0.6, "pitch": [1,1]},
   "tick": {"files": ["tick_001", "tick_002"], "vol": 0.35, "pitch": [0.95,1.05]},
-  "snore": {"files": ["snore_1", "snore_2", "snore_3", "snore_4", "snore_5", "snore_6", "snore_7"], "vol": 0.6, "pitch": [0.94,1.02]}
+  "snore": {"files": ["snore_monster"], "vol": 0.5, "pitch": [0.9,1.05]}
 }
