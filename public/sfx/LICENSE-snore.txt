@@ -1,5 +1,0 @@
-snore_monster.wav
-  Source: "47-MonstruoGrandeDurmiendo.wav" by wintuh, Freesound
-  https://freesound.org/people/wintuh/sounds/471927/
-  License: Creative Commons 0 (CC0 1.0) - public domain, no attribution required.
-  Edited: trimmed, high-passed at 35 Hz, normalized, faded out, 24 kHz mono.

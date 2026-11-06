@@ -1,0 +1,15 @@
+snore_monster.wav
+  Source: "47-MonstruoGrandeDurmiendo.wav" by wintuh, Freesound
+  https://freesound.org/people/wintuh/sounds/471927/
+  License: Creative Commons 0 (CC0 1.0) - public domain, no attribution required.
+  Edited: trimmed, high-passed at 35 Hz, normalized, faded out, 24 kHz mono.
+
+monster_roar_*.wav, monster_hmm_*.wav, monster_groan_*.wav, monster_yawn_*.wav
+  Source: "80 CC0 creature SFX" by rubberduck, OpenGameArt
+  https://opengameart.org/content/80-cc0-creature-sfx
+  License: Creative Commons 0 (CC0 1.0) - public domain, no attribution required.
+  roar_1 = roar_02, roar_2 = monster_07, roar_3 = monster_03,
+  hmm_1 = ooh, hmm_2 = grunt_02, hmm_3 = troll_01,
+  groan_1 = grunt_01, groan_2 = grunt_03, groan_3 = monster_06,
+  yawn_1 = monster_04, yawn_2 = howl.
+  Edited: downmixed to mono, high-passed at 35 Hz, normalized, faded out, 24 kHz.
