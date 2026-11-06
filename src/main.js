@@ -31,6 +31,7 @@ import '@fontsource-variable/nunito';
 import * as TX from './textures.js';
 import { Input } from './input.js';
 import { Sfx, audioReport } from './audio.js';
+import { playAstravaIntro } from './astrava-intro/astravaIntro.js';
 import { loadSave, writeSave as writeSaveReal } from './save.js';
 const writeSave = (sv) => { if (!new URLSearchParams(location.search).has('demo')) writeSaveReal(sv); };
 import * as AS from './assets.js';
@@ -1470,6 +1471,11 @@ hydrateIcons();
 const playLabel = (t) => { $('playBtn').querySelector('span').textContent = t; };
 applyStatic();
 $('playBtn').disabled = true; playLabel(t('loading', { p: 0 }));
+// Astrava Studios intro on every cold start, not skippable, over the splash while the models load underneath
+// (off for debug / automation entry points). Game audio starts by itself right after it, no tap needed
+// (the app WebView allows autoplay; a browser only after the intro's own tap-to-start gate).
+if (['nointro', 'night', 'sim', 'demo', 'gallery', 'screen', 'autoplay'].some((k) => Q.has(k))) { document.getElementById('astrava-boot')?.remove(); sfx.init(); }
+else playAstravaIntro({ volume: 0.9 * save.vol.sfx, audio: save.vol.sfx > 0, skippable: false, tapText: t('tapStart') }).then(() => sfx.init());
 // splash: progress bar + rotating gameplay hints until the models are in, then fade to the menu
 const splashTips = ['hintSnore', 'hintPeek', 'hintSqueak', 'hintCat', 'hintChase', 'hintMove'].map((k) => t(k));
 let splashTipAt = Math.floor(Math.random() * splashTips.length);
