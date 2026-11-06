@@ -1396,6 +1396,7 @@ function audioAmbience(dt) {
   if (S.state === 'play' && Math.random() < dt / 18) sfx.houseCreak();
 }
 let last = performance.now(), hudT = 0, liteSweepT = 0;
+let introOn = false; // the Astrava intro covers the screen: draw nothing underneath so the phone can give it every frame
 // Once the furniture has settled in, bake everything in the room that never moves again into one mesh per
 // material (lite.js): ~300 draw calls become a few dozen, the biggest CPU cost on entry-level phones.
 function mergeWorld() {
@@ -1438,6 +1439,7 @@ function warmUp() {
 const holding = () => (compiling || (liteOn() && mergeJob && mergeJob.world === world)) && performance.now() < holdUntil;
 function frame(now) {
   requestAnimationFrame(frame);
+  if (introOn) { last = now; return; }
   if (mode !== 'play' && now - last < 1000 / 32) return; // menus, market, hideout: 30 fps is plenty and saves battery
   const minMs = mode === 'play' ? playMinMs() : 0;
   if (minMs && now - last < minMs - 2) return; // -2: rAF timestamps jitter around the vsync
@@ -1475,7 +1477,7 @@ $('playBtn').disabled = true; playLabel(t('loading', { p: 0 }));
 // (off for debug / automation entry points). Game audio starts by itself right after it, no tap needed
 // (the app WebView allows autoplay; a browser only after the intro's own tap-to-start gate).
 if (['nointro', 'night', 'sim', 'demo', 'gallery', 'screen', 'autoplay'].some((k) => Q.has(k))) { document.getElementById('astrava-boot')?.remove(); sfx.init(); }
-else playAstravaIntro({ volume: 0.9 * save.vol.sfx, audio: save.vol.sfx > 0, skippable: false, tapText: t('tapStart') }).then(() => sfx.init());
+else { introOn = true; playAstravaIntro({ volume: 0.9 * save.vol.sfx, audio: save.vol.sfx > 0, skippable: false, tapText: t('tapStart'), onReveal: () => { introOn = false; } }).then(() => sfx.init()); }
 // splash: progress bar + rotating gameplay hints until the models are in, then fade to the menu
 const splashTips = ['hintSnore', 'hintPeek', 'hintSqueak', 'hintCat', 'hintChase', 'hintMove'].map((k) => t(k));
 let splashTipAt = Math.floor(Math.random() * splashTips.length);
