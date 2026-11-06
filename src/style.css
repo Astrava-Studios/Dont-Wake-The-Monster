@@ -1207,3 +1207,20 @@ input[type=range]::-moz-range-thumb { width: 30px; height: 30px; border: none; b
 .rarityTag.tc { background: #f8d7da; color: #721c24; }
 
 
+
+/* ---------- sheets: pinned header/buttons, scrolling middle ----------
+   The market / wardrobe / hideout / handbook sheets are capped in height and clip their overflow.
+   When the list was taller than the cap (wardrobe 3rd row of sets, small phones) the Buy/Back buttons
+   were pushed out of sight. Keep tabs and buttons fixed, let only the list scroll (touch pan-y). */
+.mkSheet { min-height: 0; }
+.mkSheet > * { flex: none; }
+.mkSheet > .wGrid, .mkSheet > .goodList, .mkSheet > .itemGrid {
+  flex: 0 1 auto; min-height: 0; max-height: none; overflow-y: auto; overflow-x: hidden;
+  touch-action: pan-y; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+  align-content: start; padding: 2px; margin: -2px; scrollbar-width: thin; }
+.mkSheet > .wGrid *, .mkSheet > .goodList *, .mkSheet > .itemGrid * { touch-action: pan-y; }
+/* Landscape docks the wardrobe/hideout sheet between top and bottom; the portrait 56vh cap above comes later in
+   the file with the same specificity and used to win, squeezing the sheet into half of a phone's height. */
+@media (orientation: landscape) { #wdSheet, #hoSheet { max-height: none; } }
+/* The handbook has no 3D scene to frame: in landscape its 120px spacer only squeezed the list to nothing. */
+@media (orientation: landscape) { #bestiaryUI .mkSpacer { display: none; } #bestiaryUI { gap: 6px; } }

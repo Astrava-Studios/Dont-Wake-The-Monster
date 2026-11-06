@@ -42,6 +42,7 @@ import { icon, monsterFace, hydrateIcons, flag, GOOD_ICON } from './icons.js';
 import { measureRig, dressPlayer, animateCostume, lanternColor } from './costumes.js';
 import { setBonus, stashLoot, collect, lanternStats, buyHouse, chooseHouse } from './hideout.js';
 import { setDarkZones, setDarkLight, patchDark } from './darkness.js';
+import { gpuName, detectTier, ladder, createGovernor, measureRefresh } from './perf.js';
 
 const Q = new URLSearchParams(location.search);
 applyOverrides(location.search);
@@ -58,8 +59,10 @@ const vibrate = (p) => { if (!userTapped || !save.vibrate) return; try { navigat
 const save = loadSave(); save.hints ||= {};
 save.vol ||= { music: save.music === false ? 0 : 0.8, sfx: save.sound === false ? 0 : 1 };
 save.zoom ??= 0.25; save.vibrate ??= true;
+// Graphics on Auto (the default) picks the quality from the device once the GPU is known (renderer below).
+// Older saves stored the default quality without the player choosing it: those count as Auto too.
+save.qualityAuto ??= !save.quality || save.quality === (isTouch ? 'med' : 'high');
 save.quality ||= isTouch ? 'med' : 'high';
-save.hq = save.quality === 'high';
 save.lang ||= detectLang(); setLang(save.lang);
 save.stash ||= []; // stolen items waiting to be sold at the black market
 if (save.run.activeNight != null || (save.run.kit && save.run.kit.length)) {
@@ -79,14 +82,20 @@ document.addEventListener('pointerdown', () => { userTapped = true; sfx.init(); 
 for (const ev of ['touchend', 'click', 'keydown']) document.addEventListener(ev, () => { userTapped = true; sfx.init(); }, { passive: true, capture: true });
 
 // ---------------- renderer / scene / post ----------------
+// perfStep: the dynamic-resolution step the frame-rate governor (perf.js) is on: render scale + shadows on/off
+let perfStep = { scale: 1, shadows: true };
 const getQualityRatio = () => {
   const q = save.quality || 'med';
-  if (q === 'low') return Math.min(devicePixelRatio, 1.0);
-  if (q === 'med') return Math.min(devicePixelRatio, 1.5);
-  return Math.min(devicePixelRatio, 2.0); // Mobile High: crisp native OLED resolution capped for mobile thermal safety
+  const base = q === 'low' ? Math.min(devicePixelRatio, 1.0) : q === 'med' ? Math.min(devicePixelRatio, 1.5)
+    : Math.min(devicePixelRatio, 2.0); // Mobile High: crisp native OLED resolution capped for mobile thermal safety
+  return Math.max(0.5, base * perfStep.scale);
 };
 
 const renderer = new THREE.WebGLRenderer({ canvas: $('game'), antialias: false, powerPreference: 'high-performance', preserveDrawingBuffer: Q.has('sim') || Q.has('gallery') });
+const GPU = gpuName(renderer);
+if (save.qualityAuto) save.quality = detectTier(renderer, isTouch);
+save.hq = save.quality === 'high';
+if (save.perfGpu !== GPU) { save.perfGpu = GPU; save.perfLevel = 0; } // the remembered step belongs to this device
 renderer.setPixelRatio(getQualityRatio());
 renderer.shadowMap.enabled = save.quality !== 'low';
 renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -97,12 +106,14 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color('#1d1530');
 // image-based light so the glTF materials read correctly (dimmed: it's night)
 const pmrem = new THREE.PMREMGenerator(renderer);
-scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+// Low skips the image-based light: at night it is ~1% of the light, but it costs every pixel several texture reads
+scene.environment = save.quality === 'low' ? null : envTex;
 scene.environmentIntensity = 0.32;
 const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 200);
 const hemi = new THREE.HemisphereLight('#7f93d9', '#2a1d3d', 0.2); scene.add(hemi);
 const sun = new THREE.DirectionalLight('#a9bcff', 0.38); // moonlight key light (casts the shadows)
-sun.castShadow = true;
+sun.castShadow = save.quality !== 'low';
 const initialSm = save.quality === 'high' ? 1024 : 512;
 sun.shadow.mapSize.set(initialSm, initialSm);
 Object.assign(sun.shadow.camera, { left: -14, right: 14, top: 12, bottom: -12, near: 1, far: 50 });
@@ -110,9 +121,10 @@ sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.03; sun.shadow.radius = sav
 scene.add(sun, sun.target);
 function syncShadows() {
   const q = save.quality || 'med';
-  if (q === 'low') {
-    renderer.shadowMap.enabled = false;
+  if (q === 'low' || !perfStep.shadows) {
+    renderer.shadowMap.enabled = false; sun.castShadow = false;
   } else {
+    sun.castShadow = true;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFShadowMap;
     const sz = q === 'high' ? 1024 : 512;
@@ -508,7 +520,7 @@ function gameOver() {
 }
 
 function startPlay() {
-  hide('nightCard'); show('hud'); mode = 'play';
+  hide('nightCard'); show('hud'); mode = 'play'; gov.reset();
   if (S && !S.kitPacked) {
     S.kit = packKit(save.run, kitSel); S.kitPacked = true; save.run.activeNight = run.night;
     save.meta.monsterStats ||= {}; save.meta.monsterStats[S.L.monster.id] ||= { seen: 0, escaped: 0 }; save.meta.monsterStats[S.L.monster.id].seen++;
@@ -1194,9 +1206,12 @@ function applySettings() {
   if (bloom) bloom.enabled = save.hq; if (gtao) gtao.enabled = save.hq;
 }
 function applyQuality() {
+  if (save.qualityAuto) save.quality = detectTier(renderer, isTouch);
   const q = save.quality || (isTouch ? 'med' : 'high');
   save.quality = q;
   save.hq = q === 'high';
+  scene.environment = q === 'low' ? null : envTex;
+  gov.setSteps(perfLadder()); // also resizes + syncs shadows through applyPerf
   applySettings();
   resize();
   syncShadows();
@@ -1208,8 +1223,9 @@ function syncSettings() {
   set('setMusic', save.vol.music); set('setSfx', save.vol.sfx); set('setZoom', save.zoom);
   $('setMusicV').textContent = Math.round(save.vol.music * 100); $('setSfxV').textContent = Math.round(save.vol.sfx * 100); $('setZoomV').textContent = zoomName(save.zoom);
   $('setVibrate').classList.toggle('on', save.vibrate);
-  const curQ = save.quality || (isTouch ? 'med' : 'high');
+  const curQ = save.qualityAuto ? 'auto' : save.quality || (isTouch ? 'med' : 'high');
   const qList = [
+    { id: 'auto', label: t('qualityAuto') },
     { id: 'low', label: t('qualityLow') },
     { id: 'med', label: t('qualityMed') },
     { id: 'high', label: t('qualityHigh') },
@@ -1219,7 +1235,9 @@ function syncSettings() {
     qContainer.innerHTML = qList.map((q) => `<button class="qBtn ${q.id === curQ ? 'on' : ''}" data-q="${q.id}">${q.label}</button>`).join('');
     qContainer.querySelectorAll('[data-q]').forEach((b) => {
       b.onclick = () => {
-        save.quality = b.dataset.q;
+        save.qualityAuto = b.dataset.q === 'auto';
+        if (!save.qualityAuto) save.quality = b.dataset.q;
+        gov.set(0, 'settings'); // a fresh choice starts sharp; the governor steps down again if it has to
         writeSave(save);
         applyQuality();
         syncSettings();
@@ -1246,6 +1264,18 @@ $('setVibrate').onclick = () => { save.vibrate = !save.vibrate; writeSave(save);
 $('settingsBtn').onclick = () => { hide('menu'); openSettings(); };
 $('pauseSettings').onclick = () => { hide('pause'); openSettings(); };
 $('settingsClose').onclick = () => { writeSave(save); hide('settings'); if (paused) show('pause'); else if (mode === 'menu') show('menu'); };
+// frame-rate governor (perf.js): steps resolution / shadows down while a night runs slow, back up with headroom
+const perfLadder = () => ladder(save.qualityAuto && save.quality !== 'low');
+function applyPerf(step, level, why) {
+  perfStep = step; resize(); syncShadows();
+  if (why !== 'steps' && save.perfLevel !== level) { save.perfLevel = level; writeSave(save); }
+  if (Q.has('perf')) console.log('[perf]', level, JSON.stringify(step), why);
+}
+const gov = createGovernor({ steps: perfLadder(), level: save.perfLevel || 0, apply: applyPerf });
+perfStep = gov.step();
+// 120 Hz panels: play at 60 fps (half the GPU work and heat); 60 / 90 Hz run at their own rate
+let refreshMs = 16.7, playMinMs = 0;
+measureRefresh((ms) => { refreshMs = Math.min(ms, 16.7); playMinMs = ms < 10 ? 1000 / 62 : 0; }); // boot jank only lengthens frames
 applyQuality();
 document.querySelectorAll('[data-close]').forEach((b) => { b.onclick = () => {
   hide(b.dataset.close);
@@ -1339,7 +1369,10 @@ let last = performance.now(), hudT = 0;
 function frame(now) {
   requestAnimationFrame(frame);
   if (mode !== 'play' && now - last < 1000 / 32) return; // menus, market, hideout: 30 fps is plenty and saves battery
-  let dt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (mode === 'play' && now - last < playMinMs) return;
+  const raw = (now - last) / 1000;
+  let dt = Math.min(0.05, raw); last = now;
+  if (mode === 'play' && !paused && !document.hidden && S && !autoplay) gov.sample(raw, Math.max(refreshMs, playMinMs));
   if (paused) dt = 0;
   time += dt;
   if (mode === 'play' && S) {
@@ -1412,5 +1445,6 @@ window.GAME = {
   audioReport: () => audioReport(sfx.samples),
   tick(sec, inp) { for (let i = 0; i < sec * 60; i++) { if (mode === 'play' && S) { step(S, 1 / 60, inp || (autoplay ? bot(S, 1 / 60) : input.get())); handleEvents(); if (S.done && mode === 'play') finishNight(); } time += 1 / 60; animate(1 / 60); } updateCamera(1); updateHud(); debugLog(); if (composer) composer.render(1 / 60); else renderer.render(scene, camera); },
   setAutoplay(v) { autoplay = v; },
+  get perf() { return { gpu: GPU, quality: save.quality, auto: save.qualityAuto, level: gov.level, step: perfStep, refreshMs, playMinMs, pixelRatio: renderer.getPixelRatio(), calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, programs: renderer.info.programs.length }; }, gov,
 };
 window.__dwtm = window.GAME;
