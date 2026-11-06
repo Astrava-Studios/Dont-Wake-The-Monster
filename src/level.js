@@ -262,11 +262,8 @@ export function generateLevel(night, seed, house = 'manor') {
 
   // treasures
   const items = [];
-  // the crown sits right in front of the monster
-  for (let t = 0; t < 50; t++) {
-    const a = R(-0.9, 0.9); const x = nest.x + Math.sin(a) * 2.85, z = nest.z + Math.cos(a) * 2.85;
-    if (reachable(x, z)) { items.push({ kind: 'crown', x, z }); break; }
-  }
+  // the crown lies in the monster's bed, next to it: it can only be taken once the monster has left the bed (scream)
+  { const side = rng() < 0.5 ? -1 : 1; items.push({ kind: 'crown', x: nest.x + side * 1.15, z: nest.z + 1.6, onBed: true }); }
   const chestN = night >= LV.chestFromNight ? (night >= LV.twoChestsFromNight ? 2 : 1) : 0;
   for (let i = 0; i < chestN; i++) { const p = spot(4, items, 2); if (p) items.push({ kind: 'chest', ...p }); }
   const tN = Math.min(LV.itemBase + Math.floor(night * LV.itemPerNight), LV.itemMax) + (has('hoard') ? LV.hoardExtra : 0) + (has('lucky') ? 1 : 0);

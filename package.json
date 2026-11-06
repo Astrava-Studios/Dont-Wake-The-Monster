@@ -7,7 +7,7 @@
     "dev": "vite --host",
     "build": "vite build",
     "preview": "vite preview --host",
-    "test": "node test/sim.test.mjs && node test/promises.test.mjs && node test/market.test.mjs && node test/run.test.mjs && node test/hideout.test.mjs && node test/physics.test.mjs && node test/perf.test.mjs",
+    "test": "node test/sim.test.mjs && node test/tutorial.test.mjs && node test/promises.test.mjs && node test/market.test.mjs && node test/run.test.mjs && node test/hideout.test.mjs && node test/physics.test.mjs && node test/perf.test.mjs",
     "balance": "node scripts/balance.mjs 40",
     "economy": "node scripts/economy.mjs 40 45"
   },

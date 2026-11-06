@@ -132,7 +132,13 @@ export const RULES = {
     decor: { rug: 150, plant: 200, lamp: 300, poster: 250, fishbowl: 500, armchair: 650, globe: 800, throne: 1500 },
   },
   // stars on escape pay reputation coins: per night number
-  score: { stealthBonus: 15, sweepBonus: 30, nearSweepAt: 1 },
+  score: { stealthBonus: 15, sweepBonus: 30, nearSweepAt: 1, boldBonus: 10 }, // boldBonus: escaped after screaming (× night)
+  // scream: wake the monster on purpose. It runs to where the scream came from, looks around, then walks back to bed.
+  // Only while its bed is empty can the crown lying on it be taken. see = how far it spots you while searching (never in
+  // the dark, in a wardrobe or behind tall furniture), seeTravel = same on the way there; hear = noise that makes it come
+  // at you while it hunts; lureMax = seconds it may run before searching anyway; react = extra pause when it spots you;
+  // hearDecay = heard noise fading per second (quiet rummaging far away stays under 'hear', running does not)
+  scream: { perNight: 1, react: 0.5, search: 4.5, see: 5.5, seeTravel: 3, hear: 18, hearDecay: 6, lureMax: 9 },
   upgrades: {
     max: 5, costGrowth: 1.7,
     socks: { base: 120, per: 0.12 },   // noise -12% per level

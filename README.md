@@ -11,8 +11,8 @@ npm run build    # dist/ klasörüne üretim çıktısı
 
 ## Kontroller
 - **Dokunmatik:** ekranda herhangi bir yere basıp sürükle. Az itersen parmak ucunda yürürsün (sessiz), tam itersen koşarsın (gürültülü).
-- **Butonlar:** 🎒 Bırak (en ağır eşyayı yere bırakır, hızlanırsın) · 🎵 Ninni (canavarı sakinleştirir; kovalarken sersemletir).
-- **Klavye:** WASD/oklar, Shift = parmak ucu, Space = ninni, Q = bırak, P/Esc = duraklat.
+- **Butonlar:** 🎒 Bırak (en ağır eşyayı yere bırakır, hızlanırsın) · 🎵 Ninni (canavarı sakinleştirir; kovalarken sersemletir) · 📣 Bağır (gecede bir kez; canavarı bilerek uyandırır).
+- **Klavye:** WASD/oklar, Shift = parmak ucu, Space = ninni, R = bağır, Q = bırak, P/Esc = duraklat.
 
 ## Hırsızlık ve ticaret
 - **Eşyalar:** altın yok; 9 çeşit eşya çalınıyor: nadir kitap, gümüş şamdan, antika şişe, porselen vazo, tablo, cep saati, değerli taş, mücevher kutusu, canavarın tacı. Her birinin gerçek değeri gizli ve bir aralık içinde rastgele belirleniyor (`rules.js` > `items`).
@@ -42,6 +42,7 @@ npm run build    # dist/ klasörüne üretim çıktısı
 | Horlama ritmi | Canavar horlarken ses %68 bastırılır. Bu ritme göre hareket etmek gerekir. |
 | Göz atma | Çubuk %45'i geçince canavar göz açıp bakar. Ya durursun ya da uzun bir eşyanın arkasına saklanırsın. |
 | Çanta ağırlığı | Hazine arttıkça yavaşlarsın ve daha çok ses çıkarırsın. Risk/ödül dengesi buradan gelir. |
+| Bağırma ve taç | **Canavarın tacı** yatağında, canavarın yanında durur; canavar yataktayken alınamaz. Gecede bir kez 📣 Bağır: canavar uyanır ve sesin geldiği yere koşar, orada birkaç saniye etrafa bakar. Bu sırada karanlıkta, gardıropta ya da uzun bir eşyanın arkasında saklanırsan seni göremez. Ararken sesleri de duyar. Yatak boşken tacı alabilirsin. Seni görürse kısa bir şaşkınlıktan sonra kovalar. Ninni onu doğrudan yatağına yollar. Bağırarak kaçmak "gizli" yıldızını kaybettirir ama yerine Cüretkâr yıldızı ve küçük bir Şöhret bonusu verir. **Öğretici:** oyuncu yatağa ilk yaklaştığında oyun durur ve bir giriş kartı 4 adımı anlatır. Sonra alt köşedeki kart 6 adımı tek tek verir (yatağa bak → uzaklaş → bağır → saklan → tacı al → kapıya koş), sarı bir ok da hedefi gösterir: bağırma yeri, en yakın gardırop / karanlık / uzun eşyanın arkası, taç, kapı. Görülür ya da geç kalırsan kart nedenini söyler ve öğretici ertesi gece tekrarlanır. Öğretici sırasında canavar biraz daha uzun arar. "Nasıl oynanır" ekranından yeniden oynatılabilir (`src/tutorial.js`). |
 | Kovalama | Canavar A* ile yol bulup peşine düşer; yaklaşınca kısa bir atılış yapar. Bir süre sonra yorulup yatağına döner. Yatağına dönerken hâlâ huysuzdur: yeterince ses duyarsa geri döner ve yeniden kovalar. Şafak sökerse pes etmez. |
 | Gardırop | Gardırobun yanında yarım saniye kıpırdamadan durursan içine girersin; canavar göz attığında seni göremez. Yalnızca canavar uyurken işe yarar. |
 | Uyurgezerlik | 2. geceden sonra canavar bazen uykusunda yürür; çarparsan uyanır. Yatağına dönünce uyanma çubuğu olduğu gibi kalır. |
