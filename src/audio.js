@@ -13,12 +13,21 @@ const rnd = (a, b) => a + Math.random() * (b - a);
 const jit = (p = 0.06) => 1 + (Math.random() * 2 - 1) * p; // random pitch for impacts
 
 // median pitch (Hz) of the voiced parts, normalised autocorrelation (first strong peak, so no octave jumps)
+// Cheap enough for a slow phone (the full-rate version froze the first tap for ~2 s): the signal is averaged
+// down to ~12 kHz (plenty for a 60–500 Hz voice), at most 40 voiced frames are looked at, and each lag is
+// correlated once.
 export function voicePitch(d, sr) {
-  const F = Math.round(sr * 0.04), f = [];
-  for (let s = 0; s + F < d.length; s += F * 2) {
-    let e = 0; for (let k = 0; k < F; k++) e += d[s + k] * d[s + k]; if (e / F < 1e-4) continue;
-    const r = (lag) => { let c = 0, a = 0, b = 0; for (let k = 0; k + lag < F; k++) { c += d[s + k] * d[s + k + lag]; a += d[s + k] * d[s + k]; b += d[s + k + lag] * d[s + k + lag]; } return c / Math.sqrt(a * b + 1e-12); };
-    for (let lag = Math.round(sr / 500); lag < Math.round(sr / 60); lag++) { const v = r(lag); if (v > 0.6 && v >= r(lag - 1) && v >= r(lag + 1)) { f.push(sr / lag); break; } }
+  const step = Math.max(1, Math.floor(sr / 12000)), rate = sr / step, n = Math.floor(d.length / step);
+  const x = new Float32Array(n);
+  for (let i = 0; i < n; i++) { let s = 0; for (let k = 0; k < step; k++) s += d[i * step + k]; x[i] = s / step; }
+  const F = Math.round(rate * 0.04), voiced = [], f = [];
+  for (let s = 0; s + F < n; s += F * 2) { let e = 0; for (let k = 0; k < F; k++) e += x[s + k] * x[s + k]; if (e / F >= 1e-4) voiced.push(s); }
+  const pick = voiced.length <= 40 ? voiced : Array.from({ length: 40 }, (_, i) => voiced[Math.floor((i * voiced.length) / 40)]);
+  const lo = Math.round(rate / 500), hi = Math.round(rate / 60);
+  for (const s of pick) {
+    const r = (lag) => { let c = 0, a = 0, b = 0; for (let k = 0; k + lag < F; k++) { c += x[s + k] * x[s + k + lag]; a += x[s + k] * x[s + k]; b += x[s + k + lag] * x[s + k + lag]; } return c / Math.sqrt(a * b + 1e-12); };
+    let prev = r(lo - 1), cur = r(lo);
+    for (let lag = lo; lag < hi; lag++) { const next = r(lag + 1); if (cur > 0.6 && cur >= prev && cur >= next) { f.push(rate / lag); break; } prev = cur; cur = next; }
   }
   f.sort((a, b) => a - b); return f.length ? Math.round(f[Math.floor(f.length / 2)]) : 0;
 }
@@ -107,6 +116,8 @@ export class Sfx {
   constructor() {
     this.ctx = null; this.enabled = true; this.musicOn = true;
     this.listener = { x: 0, z: 0, half: 9 }; this.samples = {};
+    this.lowPower = false; // set by the game on the Low look: bigger audio buffers, no reverb
+    this.samplesPending = true; this.listed = new Set(); // sample voices still loading / named in the manifest
     this.mode = 'calm'; this.intensity = 0; this.muffled = false;
     this.step16 = 0; this.nextT = 0;
     this.voiceState = 'loading'; // loading | own | pack | none
@@ -120,7 +131,12 @@ export class Sfx {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!ctx && !AC) return;
     if (IOS && !ctx) playAsMedia(this); // before the context exists, so it starts in the media session
-    const c = this.ctx = ctx || new AC();
+    // A weak phone can't refill the smallest audio buffers in time and crackles: ask for larger ones on touch
+    // devices ('playback' on the Low look). A few tens of ms of extra latency are not noticeable here.
+    const touch = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
+    let c = ctx;
+    if (!c) { try { c = new AC({ latencyHint: this.lowPower ? 'playback' : touch ? 'balanced' : 'interactive' }); } catch { c = new AC(); } }
+    this.ctx = c;
     const len = c.sampleRate * 2; const nb = c.createBuffer(1, len, c.sampleRate); const d = nb.getChannelData(0);
     for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
     this.noiseBuf = nb;
@@ -148,6 +164,12 @@ export class Sfx {
     const rf = c.createBiquadFilter(); rf.type = 'lowpass'; rf.frequency.value = 220;
     const rg = this.roomTone = c.createGain(); rg.gain.value = 0.05; rt.connect(rf); rf.connect(rg); rg.connect(this.ambBus); rt.start();
     this.nextT = c.currentTime + 0.1;
+    // Music is scheduled ahead of time. 0.15 s was too short for a phone whose frames stall now and then: late
+    // notes got squeezed in and crackled. Touch devices look 0.45 s ahead, and a timer keeps scheduling even
+    // when frames stall.
+    this.ahead = touch ? 0.45 : 0.2;
+    if (!ctx) setInterval(() => { if (this.ctx && !this.bg) this.schedule(this.ctx.currentTime + this.ahead); }, 120);
+    if (this.wantVerb === false) this.setReverb(false);
     if (!ctx) { this.loadSamples(); this.loadVoice(); this.unlock(); }
   }
   // Called on every tap. iOS only starts (or restarts after a phone call: state 'interrupted') a context
@@ -164,13 +186,20 @@ export class Sfx {
     for (let ch = 0; ch < channels; ch++) { const d = b.getChannelData(ch); for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, decay) * (i < 80 ? i / 80 : 1); }
     return b;
   }
-  setReverb(enabled) { if (this.verbOut) this.verbOut.gain.value = enabled ? 0.22 : 0; }
+  // off = disconnected, not just muted: a convolver is the most expensive node in the graph
+  setReverb(enabled) {
+    this.wantVerb = enabled; // remembered until init() builds the graph
+    if (!this.verbOut || this.verbOn === enabled) return; this.verbOn = enabled;
+    this.verbOut.gain.value = enabled ? 0.22 : 0;
+    try { if (enabled) this.verb.connect(this.verbOut); else this.verb.disconnect(); } catch {}
+  }
   async loadSamples() {
     try {
       const base = import.meta.env.BASE_URL + 'sfx/';
       const r = await fetch(base + 'manifest.json');
       if (!r.ok || !(r.headers.get('content-type') || '').includes('json')) return;
       const list = await r.json();
+      for (const k of Object.keys(list)) if (!k.startsWith('_')) this.listed.add(k);
       const probe = typeof Audio !== 'undefined' ? new Audio() : null;
       const ogg = !!(probe && probe.canPlayType('audio/ogg; codecs="vorbis"'));
       const decode = async (f) => {
@@ -187,6 +216,7 @@ export class Sfx {
       }));
       this.sampleCount = Object.keys(this.samples).length;
     } catch {}
+    this.samplesPending = false;
   }
   // merchant voice: CC-BY 3.0 "PlayerTalkingSFX" by Colodical (public/sfx/voice/CREDITS.txt).
   // The recordings are continuous gibberish; we cut them into syllables at the dips of the loudness envelope.
@@ -201,9 +231,13 @@ export class Sfx {
       const pack = own.length ? [] : (await Promise.all((got.pack.length ? got.pack : await fetchPackBytes()).map(decode))).filter(Boolean);
       const bufs = own.length ? own : pack;
       const clips = [];
+      const yieldNow = () => new Promise((r) => setTimeout(r, 0)); // split the analysis so taps and frames get through
       for (const raw of bufs) {
+        await yieldNow();
         const b = compactSpeech(this.ctx, raw);
+        await yieldNow();
         const syl = voiceSyllables(b); if (!syl.length) continue;
+        await yieldNow();
         // phrase starts: syllables that follow a pause, so speech never begins mid-word
         const starts = syl.filter((sy, i) => i === 0 || sy[0] - (syl[i - 1][0] + syl[i - 1][1]) > 0.08).map((sy) => Math.max(0, sy[0] - 0.03));
         // a gentle slow-down makes him a bit bigger; a high voice (the fallback pack) is slowed more
@@ -414,8 +448,10 @@ export class Sfx {
   lullaby() { if (!this.ok) return; this.duck(0.15, 1.6); [72, 76, 79, 76, 74, 71, 72].forEach((n, i) => this.bell(NOTE(n + 12), this.ctx.currentTime + i * 0.2, 0.1, this.sfxBus)); }
 
   // ---------- monster ----------
+  // a monster voice that has a recording is never replaced by the old synth growl, not even while it is loading
+  recorded(name) { return this.samplesPending || this.listed.has(name); }
   snore(len = 1.8, x, z, k = 1) { // k: loudness (the menu plays it soft)
-    if (!this.ok) return; if (this.sample('snore', { x, z, vol: 0.7 * k, len: len + 0.35 })) return; // takes carry ~0.35 s of tail
+    if (!this.ok) return; if (this.sample('snore', { x, z, vol: 0.7 * k, len: len + 0.35 }) || this.recorded('snore')) return; // takes carry ~0.35 s of tail
     const c = this.ctx, t = c.currentTime, out = this.out({ x, z });
     const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(46, t); o.frequency.linearRampToValueAtTime(60, t + len * 0.6); o.frequency.linearRampToValueAtTime(42, t + len);
     const f = c.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 320; f.Q.value = 1.2;
@@ -425,9 +461,9 @@ export class Sfx {
     this.noise(len, { freq: 600, q: 0.7, vol: 0.06 * k, att: len * 0.5, x, z });
     this.noise(0.9, { type: 'bandpass', freq: 500, slide: 1400, q: 1, vol: 0.03 * k, att: 0.5, delay: len + 0.4, x, z }); // whistle on the out-breath
   }
-  hmm(x, z) { if (this.sample('hmm', { x, z, vol: 0.7 })) return; this.tone(130, 0.5, { vol: 0.22, slide: 185, lp: 600, x, z }); this.tone(185, 0.4, { vol: 0.16, slide: 145, lp: 600, delay: 0.42, x, z }); }
+  hmm(x, z) { if (this.sample('hmm', { x, z, vol: 0.7 }) || this.recorded('hmm')) return; this.tone(130, 0.5, { vol: 0.22, slide: 185, lp: 600, x, z }); this.tone(185, 0.4, { vol: 0.16, slide: 145, lp: 600, delay: 0.42, x, z }); }
   roar(x, z) {
-    if (!this.ok) return; this.duck(0.12, 1.6); if (this.sample('roar', { x, z, vol: 0.9 })) return;
+    if (!this.ok) return; this.duck(0.12, 1.6); if (this.sample('roar', { x, z, vol: 0.9 }) || this.recorded('roar')) return;
     const c = this.ctx, t = c.currentTime, out = this.out({ x, z });
     const ws = c.createWaveShaper(); const cv = new Float32Array(256); for (let i = 0; i < 256; i++) cv[i] = Math.tanh((i / 128 - 1) * 5); ws.curve = cv;
     const g = c.createGain(); this.env(g, t, 0.65, 1.5, 0.05);
@@ -438,8 +474,8 @@ export class Sfx {
     this.tone(55, 0.5, { vol: 0.5, slide: 30, x, z }); // sub thump
   }
   stomp(x, z) { if (this.sample('stomp', { x, z, vol: 0.8 })) return; this.tone(70 * jit(0.1), 0.18, { vol: 0.28, slide: 38, x, z }); this.noise(0.09, { freq: 300, vol: 0.08, x, z }); }
-  yawn(x, z) { if (this.sample('yawn', { x, z, vol: 0.7 })) return; this.tone(240, 1.3, { vol: 0.16, slide: 110, lp: 900, att: 0.3, x, z }); }
-  groan(x, z) { if (this.sample('groan', { x, z, vol: 0.7 })) return; this.tone(115, 0.7, { vol: 0.22, slide: 75, lp: 400, x, z }); this.noise(0.4, { freq: 260, vol: 0.08, x, z }); }
+  yawn(x, z) { if (this.sample('yawn', { x, z, vol: 0.7 }) || this.recorded('yawn')) return; this.tone(240, 1.3, { vol: 0.16, slide: 110, lp: 900, att: 0.3, x, z }); }
+  groan(x, z) { if (this.sample('groan', { x, z, vol: 0.7 }) || this.recorded('groan')) return; this.tone(115, 0.7, { vol: 0.22, slide: 75, lp: 400, x, z }); this.noise(0.4, { freq: 260, vol: 0.08, x, z }); }
   rustle(x, z) { this.noise(0.3, { type: 'bandpass', freq: 650, q: 2, vol: 0.09, x, z }); }
   catHiss(x, z) {
     this.noise(0.38, { type: 'bandpass', freq: 4500, q: 2.5, vol: 0.16, x, z });
@@ -493,7 +529,7 @@ export class Sfx {
     const tension = Math.max(0, (intensity - 0.35) / 0.65); // only schedule a ramp when it really changes (not 60 per second)
     if (this.tension == null || Math.abs(tension - this.tension) > 0.01) { this.tension = tension; this.tensionBus.gain.setTargetAtTime(tension, t, 0.4); }
     if (muffled !== this.muffled) { this.muffle.frequency.setTargetAtTime(muffled ? 700 : 16000, t, 0.15); this.muffled = muffled; }
-    this.schedule(t + 0.15);
+    this.schedule(t + this.ahead);
   }
   // look-ahead sequencer (also usable with an OfflineAudioContext for tests)
   schedule(until) {

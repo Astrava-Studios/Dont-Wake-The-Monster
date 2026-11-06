@@ -59,30 +59,22 @@ export function createBestiaryView({ save, d, sfx, hide, show }) {
           </div>`;
       }).join('');
     } else {
-      // Treasures / Museum
-      const RARITY_LABELS = {
-        1: { name: 'Tier 1', cls: 't1' },
-        2: { name: 'Tier 2', cls: 't2' },
-        3: { name: 'Tier 3', cls: 't3' },
-        cursed: { name: 'Cursed', cls: 'tc' },
-      };
-
+      // Treasures: rarity as stars (no words, so every language reads it), cursed items get a red bolt badge,
+      // the crown a gold one; how many you stole and the best price you got as two small chips.
       body = Object.entries(RULES.items).map(([kind, info]) => {
         const discovered = save.meta.collection.includes(kind);
         const stats = save.meta.itemStats?.[kind] || { stolen: discovered ? 1 : 0, bestPrice: 0 };
         const name = discovered ? itemName(kind) : t('undiscovered');
-        const rarity = kind === 'crown' ? { name: 'Legendary', cls: 'tl' } : (RARITY_LABELS[info.tier] || { name: 'Rare', cls: 't2' });
-
+        const cursed = info.tier === 'cursed', legend = kind === 'crown';
+        const tier = cursed ? 3 : info.tier || 1;
+        const stars = `<span class="tierStars">${[1, 2, 3].map((k) => `<i class="${k <= tier ? 'f' : ''}"></i>`).join('')}</span>`;
+        const badge = cursed ? `<span class="tierBadge cursed">${icon('bolt')}</span>` : legend ? `<span class="tierBadge legend">${icon('trophy')}</span>` : '';
+        const price = stats.bestPrice ? `<span class="coin"></span><span class="num">${stats.bestPrice}</span>` : `<span class="coin"></span><span class="num">≤${info.value[1]}</span>`;
         return `
-          <div class="goodRow treasureRow ${discovered ? '' : 'locked'}">
-            <span class="gi ${discovered ? '' : 'sil'}">${icon(discovered ? ('i_' + kind) : 'lock')}</span>
-            <div class="gt">
-              <b>${name}</b> <small class="rarityTag ${rarity.cls}">${rarity.name}</small>
-              <small>${discovered ? `${t('collectionT')}: ${stats.stolen || 1}` : '???'}</small>
-            </div>
-            <div class="bmStats">
-              <span class="bmStatChip price">${discovered ? (stats.bestPrice ? `<span class="coin"></span>${stats.bestPrice}` : t('bestSold', { n: info.value[1] })) : '???'}</span>
-            </div>
+          <div class="goodRow treasureRow ${discovered ? '' : 'locked'} ${cursed ? 'cursed' : ''} ${legend ? 'legend' : ''}">
+            <span class="lootIc">${icon(discovered ? ('i_' + kind) : 'lock')}</span>
+            <div class="gt"><b>${name}${badge}</b>${stars}</div>
+            ${discovered ? `<div class="tStats"><span class="bmStatChip seen" title="${t('collectionT')}">${icon('bag')}<span class="num">${stats.stolen || 1}</span></span><span class="bmStatChip price">${price}</span></div>` : ''}
           </div>`;
       }).join('');
     }

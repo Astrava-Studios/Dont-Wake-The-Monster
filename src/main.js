@@ -1,12 +1,8 @@
 // View layer: renders the pure sim (sim.js), turns its events into juice + sound, and hosts the UI.
 // Debug hooks: ?seed=N ?night=N ?sim=SECONDS ?autoplay&speed=4 ?gallery ?noassets ?lowfx ?r.path=value
 import { Capacitor } from '@capacitor/core';
-import { StatusBar } from '@capacitor/status-bar';
 import { App } from '@capacitor/app';
-
-if (Capacitor.isNativePlatform()) {
-  StatusBar.hide().catch(() => {});
-}
+// Full screen on Android is handled natively (MainActivity: sticky immersive, bars come back only for a moment).
 
 import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
@@ -42,6 +38,8 @@ import { icon, monsterFace, hydrateIcons, flag, GOOD_ICON } from './icons.js';
 import { measureRig, dressPlayer, animateCostume, lanternColor } from './costumes.js';
 import { setBonus, stashLoot, collect, lanternStats, buyHouse, chooseHouse } from './hideout.js';
 import { setDarkZones, setDarkLight, patchDark } from './darkness.js';
+import { gpuName, detectTier, looks, createGovernor, measureRefresh } from './perf.js';
+import { setLite, mergeStaticJob } from './lite.js';
 
 const Q = new URLSearchParams(location.search);
 applyOverrides(location.search);
@@ -58,8 +56,10 @@ const vibrate = (p) => { if (!userTapped || !save.vibrate) return; try { navigat
 const save = loadSave(); save.hints ||= {};
 save.vol ||= { music: save.music === false ? 0 : 0.8, sfx: save.sound === false ? 0 : 1 };
 save.zoom ??= 0.25; save.vibrate ??= true;
+// Graphics on Auto (the default) picks the quality from the device once the GPU is known (renderer below).
+// Older saves stored the default quality without the player choosing it: those count as Auto too.
+save.qualityAuto ??= !save.quality || save.quality === (isTouch ? 'med' : 'high');
 save.quality ||= isTouch ? 'med' : 'high';
-save.hq = save.quality === 'high';
 save.lang ||= detectLang(); setLang(save.lang);
 save.stash ||= []; // stolen items waiting to be sold at the black market
 if (save.run.activeNight != null || (save.run.kit && save.run.kit.length)) {
@@ -79,14 +79,22 @@ document.addEventListener('pointerdown', () => { userTapped = true; sfx.init(); 
 for (const ev of ['touchend', 'click', 'keydown']) document.addEventListener(ev, () => { userTapped = true; sfx.init(); }, { passive: true, capture: true });
 
 // ---------------- renderer / scene / post ----------------
+// perfStep: the step the frame-rate governor (perf.js) is on: shadows off / simple materials / 30 fps cap
+let perfStep = { shadows: true, lite: false, cap: 0 };
 const getQualityRatio = () => {
   const q = save.quality || 'med';
   if (q === 'low') return Math.min(devicePixelRatio, 1.0);
   if (q === 'med') return Math.min(devicePixelRatio, 1.5);
   return Math.min(devicePixelRatio, 2.0); // Mobile High: crisp native OLED resolution capped for mobile thermal safety
 };
+// Low, or the governor's lite step: Lambert instead of PBR materials (lite.js)
+const liteOn = () => save.quality === 'low' || perfStep.lite;
 
 const renderer = new THREE.WebGLRenderer({ canvas: $('game'), antialias: false, powerPreference: 'high-performance', preserveDrawingBuffer: Q.has('sim') || Q.has('gallery') });
+const GPU = gpuName(renderer);
+if (save.qualityAuto) save.quality = detectTier(renderer, isTouch);
+save.hq = save.quality === 'high';
+if (save.perfGpu !== GPU) { save.perfGpu = GPU; save.perfLook = 0; save.perfCap = false; } // the remembered look belongs to this device
 renderer.setPixelRatio(getQualityRatio());
 renderer.shadowMap.enabled = save.quality !== 'low';
 renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -97,12 +105,14 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color('#1d1530');
 // image-based light so the glTF materials read correctly (dimmed: it's night)
 const pmrem = new THREE.PMREMGenerator(renderer);
-scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+// Low skips the image-based light: at night it is ~1% of the light, but it costs every pixel several texture reads
+scene.environment = save.quality === 'low' ? null : envTex;
 scene.environmentIntensity = 0.32;
 const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 200);
 const hemi = new THREE.HemisphereLight('#7f93d9', '#2a1d3d', 0.2); scene.add(hemi);
 const sun = new THREE.DirectionalLight('#a9bcff', 0.38); // moonlight key light (casts the shadows)
-sun.castShadow = true;
+sun.castShadow = save.quality !== 'low';
 const initialSm = save.quality === 'high' ? 1024 : 512;
 sun.shadow.mapSize.set(initialSm, initialSm);
 Object.assign(sun.shadow.camera, { left: -14, right: 14, top: 12, bottom: -12, near: 1, far: 50 });
@@ -110,9 +120,10 @@ sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.03; sun.shadow.radius = sav
 scene.add(sun, sun.target);
 function syncShadows() {
   const q = save.quality || 'med';
-  if (q === 'low') {
-    renderer.shadowMap.enabled = false;
+  if (q === 'low' || !perfStep.shadows) {
+    renderer.shadowMap.enabled = false; sun.castShadow = false;
   } else {
+    sun.castShadow = true;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFShadowMap;
     const sz = q === 'high' ? 1024 : 512;
@@ -295,6 +306,8 @@ function buildWorld(level, sim) {
     if (o.kind === 'bookshelf' && o.rot) g.rotation.y = o.x > 0 ? -Math.PI / 2 : Math.PI / 2;
     g.traverse((c) => { if (c.userData.flame) props.flames.push(c); });
     if (o.loose) g = addLoose(g, o.kind, o.x, o.z, o); else world.add(g);
+    // the squash-in is skipped on the simple look: the room can then be baked into a few meshes right away
+    if (liteOn()) { k++; continue; }
     g.userData.spawnAt = time + 0.05 + (k++) * 0.03; g.userData.settle = true; g.scale.setScalar(0.001);
   }
   // candle lights on the first tables
@@ -375,6 +388,7 @@ function makeSim(seed) {
 function buildNightWorld() { buildWorld(S.L, S); setDarkZones(S.L.darkZones); patchDark(scene); }
 function newNight(seedOverride) {
   const seed = seedOverride ?? (Q.has('seed') && run.night === 1 ? +Q.get('seed') : (Math.random() * 1e9) | 0);
+  gov.nextNight(); // a look change (shader recompile) only ever happens here, while the room is being built anyway
   S = makeSim(seed);
   buildNightWorld();
   bot = createBot({ greed: 9 });
@@ -387,79 +401,84 @@ function newNight(seedOverride) {
 function showNightCard() {
   mode = 'night';
   $('ncNight').textContent = run.night;
-  $('ncMonster').textContent = L.monster.name; $('ncMonster').style.color = L.monster.color; $('ncMonster').title = L.monster.trait;
-  $('ncFace').innerHTML = monsterFace('sleep', L.monster.color, L.monster.belly);
+  // tonight's monster as a playing card: its face on its own colour, name banner, one line about it and
+  // four stat gauges (hearing, snore length, peeking, speed: 1-3 pips)
+  const m = L.monster, lvOf = (v) => (v < 0.95 ? 1 : v > 1.05 ? 3 : 2);
+  const stats = [['ear', m.hearing], ['zzz', m.snoreLen], ['eye', m.peekRate], ['run', m.speed]]
+    .map(([ic, v]) => `<span class="mStat">${icon(ic)}<span class="pips">${[1, 2, 3].map((k) => `<i class="${k <= lvOf(v) ? 'f' : ''}"></i>`).join('')}</span></span>`).join('');
+  $('ncMCard').style.setProperty('--mc', m.color);
+  $('ncMCard').innerHTML = `<div class="mArt">${monsterFace('sleep', m.color, m.belly)}</div><div class="mName">${m.name}</div><div class="mTrait">${m.trait}</div><div class="mStats">${stats}</div>`;
   renderHousePicker();
   renderRelicPicker();
-  $('ncMods').innerHTML = L.mods.map((m) => `<div class="mod" title="${m.desc}">${icon(m.icon)} ${m.name}</div>`).join('') + (L.darkZones.length ? `<div class="mod dark">${icon('hide')} ${t('darkRooms', { n: L.darkZones.length })}</div>` : '');
+  $('ncMods').innerHTML = L.mods.length || L.darkZones.length ? `<div class="ncLbl">${t('tonightT')}</div><div class="modRow">${L.mods.map((md) => `<div class="mod" title="${md.desc}">${icon(md.icon)}<span>${md.name}</span></div>`).join('')}${L.darkZones.length ? `<div class="mod dark">${icon('hide')}<span>${t('darkRooms', { n: L.darkZones.length })}</span></div>` : ''}</div>` : '';
   const due = nightsToRent(save.run);
-  $('ncRent').innerHTML = `<span class="rentChip ${due <= 1 ? 'soon' : ''}">${icon('bank')}${t('rent')}: <span class="num">${rentAmount(save.run.rentIdx)}</span> · ${t('rentIn', { n: due })}</span>`;
+  $('ncRent').innerHTML = `<span class="pill rent ${due <= 1 ? 'soon' : ''}" title="${t('rent')}: ${rentAmount(save.run.rentIdx)} · ${t('rentIn', { n: due })}">${icon('bank')}<span class="num">${rentAmount(save.run.rentIdx)}</span><span class="pSub">${icon('moon')}<span class="num">${due}</span></span></span>`;
   renderKitPicker();
   show('nightCard'); hide('hud'); hide('menu');
 }
 
-function renderRelicPicker() {
-  const el = $('ncRelics'); if (!el) return;
+// Relics: on nights 2, 4 and 6 three you don't own are offered. Choosing is required: the night card shows only
+// the three cards (Start is disabled) until one is taken. The offer stays the same for this night (house switch,
+// reload). Each relic is a playing card: art, name banner, its upside (green) and its price (red).
+function relicOffer() {
   save.run.relics ||= [];
+  const current = save.run.relics, unowned = Object.keys(RULES.relics).filter((r) => !current.includes(r));
+  if (!unowned.length || ![2, 4, 6].includes(run.night) || save.run.relicNight === run.night) return null;
+  const off = save.run.relicOffer;
+  if (!off || off.night !== run.night || off.ids.some((id) => current.includes(id) || !RULES.relics[id])) {
+    const pool = unowned.slice(); for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+    save.run.relicOffer = { night: run.night, ids: pool.slice(0, 3) }; writeSave(save);
+  }
+  return save.run.relicOffer.ids;
+}
+const relicPending = () => mode === 'night' && !!relicOffer();
+// "Quiet steps, but bag -1": the texts put the upside first and the price after "but"
+function relicParts(desc) {
+  const p = desc.split(/,\s*(?:ama|but|но)\s+|，但是?/);
+  if (p.length < 2) return [desc, ''];
+  const con = p.slice(1).join(', ').trim().replace(/[.。]$/, '');
+  return [p[0].trim(), con.charAt(0).toLocaleUpperCase(getLang()) + con.slice(1)];
+}
+const relicCardHtml = (id, i) => {
+  const { name, desc } = relicText(id), [pro, con] = relicParts(desc);
+  return `<button class="relicCard rc${i}" data-relic="${id}" style="--d:${i * 0.08}s"><span class="rcArt">${icon(RULES.relics[id].icon)}</span><span class="rcName">${name}</span>
+    <span class="rcText"><span class="rcPro">${icon('up')}<span>${pro}</span></span>${con ? `<span class="rcCon">${icon('down')}<span>${con}</span></span>` : ''}</span></button>`;
+};
+function renderRelicPicker() {
+  const el = $('ncRelics'), pick = $('ncPick'), card = $('nightCard').querySelector('.kcard'); if (!el) return;
+  const choices = relicOffer();
+  card.classList.toggle('picking', !!choices);
+  $('sneakBtn').disabled = !!choices;
+  pick.innerHTML = choices ? `<div class="rpHead"><div class="rpTitle">${icon('sparkle')}<span>${t('pickRelic')}</span>${icon('sparkle')}</div><div class="rpSub">${t('pickRelicSub')}</div></div>
+    <div class="relicCards">${choices.map(relicCardHtml).join('')}</div>` : '';
+  pick.querySelectorAll('[data-relic]').forEach((b) => { b.onclick = () => {
+    if (pick.classList.contains('done')) return;
+    const id = b.dataset.relic;
+    pick.classList.add('done'); b.classList.add('chosen'); sfx.buy();
+    setTimeout(() => { // let the chosen card fly up, then the briefing
+      pick.classList.remove('done');
+      save.run.relics.push(id); save.run.relicNight = run.night; delete save.run.relicOffer; writeSave(save);
+      S = makeSim(S.L.seed); buildNightWorld(); // same room, new sim: the props must be bound to the new physics bodies
+      renderRelicPicker(); banner(relicText(id).name, 1.1);
+    }, 520);
+  }; });
   const current = save.run.relics;
-  const allRelics = Object.keys(RULES.relics);
-  const unowned = allRelics.filter((r) => !current.includes(r));
-  const canOffer = unowned.length && (run.night === 2 || run.night === 4 || run.night === 6) && save.run.relicNight !== run.night;
-  if (canOffer) {
-    // three random relics you don't own yet; the offer stays the same for this night (house switch, reload)
-    const off = save.run.relicOffer;
-    if (!off || off.night !== run.night || off.ids.some((id) => current.includes(id) || !RULES.relics[id])) {
-      const pool = unowned.slice(); for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
-      save.run.relicOffer = { night: run.night, ids: pool.slice(0, 3) }; writeSave(save);
-    }
-    const choices = save.run.relicOffer.ids;
-    el.innerHTML = `<div class="ncRelicTitle">${icon('sparkle')}<span>${t('pickRelic')}</span></div>
-      <div class="relicCards">${choices.map((id) => {
-        const { name, desc } = relicText(id);
-        const iconName = RULES.relics[id].icon;
-        return `<button class="relicCard" data-relic="${id}">
-          <div class="rcTop">${icon(iconName)}<b>${name}</b></div>
-          <div class="rcDesc">${desc}</div>
-        </button>`;
-      }).join('')}</div>`;
-    el.querySelectorAll('[data-relic]').forEach((b) => {
-      b.onclick = () => {
-        const id = b.dataset.relic;
-        save.run.relics.push(id);
-        save.run.relicNight = run.night;
-        writeSave(save);
-        sfx.buy();
-        delete save.run.relicOffer;
-        S = makeSim(S.L.seed); buildNightWorld(); // same room, new sim: the props must be bound to the new physics bodies
-        renderRelicPicker();
-      };
-    });
-    return;
-  }
-  if (current.length) {
-    el.innerHTML = `<div class="ncRelicTitle">${icon('sparkle')}<span>${t('activeRelics')}</span></div>
-      <div class="relicActiveList">${current.map((id) => {
-        const { name, desc } = relicText(id);
-        return `<span class="relicChip" title="${desc}">${icon(RULES.relics[id].icon)} ${name}</span>`;
-      }).join('')}</div>`;
-  } else {
-    el.innerHTML = '';
-  }
+  el.innerHTML = current.length ? `<div class="ncLbl">${t('activeRelics')}</div><div class="modRow">${current.map((id) => `<span class="relicChip" title="${relicText(id).desc}">${icon(RULES.relics[id].icon)}<span>${relicText(id).name}</span></span>`).join('')}</div>` : '';
 }
 // pick up to 3 supplies from the inventory for tonight (default: the first ones you own)
 function renderHousePicker() {
   const el = $('ncHouse'); const owned = save.meta.houses;
   const houseIcons = { manor: 'home', library: 'i_book', pirate: 's_pirate', alchemist: 's_wizard' };
   const houseKeys = { manor: 'houseManor', library: 'houseLibrary', pirate: 'housePirate', alchemist: 'houseAlchemist' };
-  el.innerHTML = Object.keys(RULES.houses).map((id) => {
+  el.innerHTML = `<div class="ncLbl">${t('houseT')}</div><div class="houseRow">` + Object.keys(RULES.houses).map((id) => {
     const on = L.house === id, own = owned.includes(id), price = RULES.houses[id].price;
     return `<button class="houseBtn ${on ? 'on' : ''}" data-h="${id}">${icon(houseIcons[id] || 'home')}<span>${t(houseKeys[id] || 'houseManor')}</span>${own ? '' : `<small>${icon('lock')}<span class="coin"></span><span class="num">${price}</span></small>`}</button>`;
-  }).join('');
+  }).join('') + '</div>';
   el.querySelectorAll('[data-h]').forEach((b) => { b.onclick = () => {
     const id = b.dataset.h; if (id === L.house) return;
     const ok = save.meta.houses.includes(id) ? chooseHouse(save, id) : buyHouse(save, id);
     if (!ok) { sfx.deny(); return; }
-    writeSave(save); if (b.querySelector('small')) sfx.buy(); newNight();
+    writeSave(save); if (b.querySelector('small')) sfx.buy(); newNightSoon();
   }; });
 }
 function renderKitPicker() {
@@ -468,7 +487,7 @@ function renderKitPicker() {
   kitSel = kitSel.filter((k) => owned.includes(k));
   if (!kitSel.length) for (const k of owned) for (let i = 0; i < inv[k] && kitSel.length < RULES.consumables.slots; i++) kitSel.push(k);
   const count = (k) => kitSel.filter((x) => x === k).length;
-  el.innerHTML = `<div class="kt">${t('kitTitle')}</div><div class="kitRow">${owned.map((k) => `<button class="kitPick ${count(k) ? 'on' : ''}" data-k="${k}" title="${goodText(k).name}">${icon(GOOD_ICON[k])}<span class="badge num">${count(k)}/${inv[k]}</span></button>`).join('')}</div>`;
+  el.innerHTML = `<div class="ncLbl">${t('kitTitle')}</div><div class="kitRow">${owned.map((k) => `<button class="kitPick ${count(k) ? 'on' : ''}" data-k="${k}" title="${goodText(k).name}">${icon(GOOD_ICON[k])}<span class="badge num">${count(k)}/${inv[k]}</span></button>`).join('')}</div>`;
   el.querySelectorAll('[data-k]').forEach((b) => { b.onclick = () => {
     const k = b.dataset.k, c = count(k);
     if (c < inv[k] && kitSel.length < RULES.consumables.slots) kitSel.push(k); else kitSel = kitSel.filter((x) => x !== k);
@@ -481,34 +500,41 @@ function renderKitSlots() {
   el.querySelectorAll('[data-slot]').forEach((b) => press(b, () => S && mode === 'play' && (useItem(S, +b.dataset.slot) || sfx.deny())));
 }
 // before a night starts: is the guild's rent due?
+// Building a room takes a few hundred ms on a slow phone: let the tap's screen change paint first, then build,
+// so the button answers at once instead of the whole UI freezing on the old screen.
+const afterPaint = (fn) => requestAnimationFrame(() => setTimeout(fn, 0));
+let nightQueued = false;
+function newNightSoon() { if (nightQueued) return; nightQueued = true; afterPaint(() => { nightQueued = false; newNight(); }); }
 function beginNight() {
-  if (!rentDueNow(save.run)) { newNight(); return; }
-  mode = 'result'; S = null; hide('menu'); hide('hud');
+  if (!rentDueNow(save.run)) { newNightSoon(); return; }
+  mode = 'result'; S = null; hide('menu'); hide('hud'); resKind('rent');
   const amt = rentAmount(save.run.rentIdx), can = canPayRent(save.run);
   $('resTitle').textContent = t('rentDueTitle'); $('resStars').innerHTML = '';
   $('resLines').innerHTML = `<p class="resText">${t('rentDueText', { n: amt })}</p>`;
   $('resItems').innerHTML = ''; $('resTotal').innerHTML = `<div class="kpanel dark"><span class="coin"></span><span class="num">${save.coins}</span></div>`;
   $('resBtns').innerHTML = (can ? `<button class="kbtn green big" id="rentPay">${icon('bank')}<span>${t('pay')}</span><span class="coin"></span><span class="num">${amt}</span></button>` : '')
     + `<div class="rowBtns">${save.stash.length || !can ? `<button class="kbtn yellow" id="rentSell">${icon('stall')}<span>${t('sellFirst')}</span></button>` : ''}<button class="kbtn grey" id="rentGive">${t('giveUp')}</button></div>`;
-  const pb = $('rentPay'); if (pb) pb.onclick = () => { payRent(save.run); writeSave(save); sfx.buy(); hide('result'); newNight(); };
+  const pb = $('rentPay'); if (pb) pb.onclick = () => { payRent(save.run); writeSave(save); sfx.buy(); hide('result'); newNightSoon(); };
   const sb = $('rentSell'); if (sb) sb.onclick = () => { hide('result'); marketView.enter('run'); };
   $('rentGive').onclick = () => gameOver();
   show('result');
 }
+// the result card's look: win (gold), lose (red), rent (purple), over (dark)
+const resKind = (k) => { $('result').querySelector('.kcard').className = 'kcard res ' + k; };
 function gameOver() {
   const sum = endRun(save); writeSave(save); kitSel = [];
-  mode = 'result'; S = null; sfx.lose();
+  mode = 'result'; S = null; sfx.lose(); resKind('over');
   $('resTitle').textContent = t('gameOver'); $('resStars').innerHTML = '';
   $('resLines').innerHTML = `<p class="resText">${t('gameOverText')}</p><div class="goRun"><div><b class="num">${sum.nights}</b>${t('sumNights')}</div><div><b class="num">${sum.sold}</b>${t('sumSold')}</div><div><b class="num">${sum.rentsPaid}</b>${t('sumRents')}</div></div>`;
   $('resItems').innerHTML = ''; $('resTotal').innerHTML = '';
   $('resBtns').innerHTML = `<button class="kbtn yellow big" id="newRunBtn">${icon('play')}<span>${t('newRun')}</span></button><div class="rowBtns"><button class="kround grey" id="menuBtn2">${icon('home')}</button></div>`;
-  $('newRunBtn').onclick = () => { hide('result'); newNight(); };
+  $('newRunBtn').onclick = () => { hide('result'); newNightSoon(); };
   $('menuBtn2').onclick = () => { hide('result'); toMenu(); };
   show('result');
 }
 
 function startPlay() {
-  hide('nightCard'); show('hud'); mode = 'play';
+  hide('nightCard'); show('hud'); mode = 'play'; gov.reset();
   if (S && !S.kitPacked) {
     S.kit = packKit(save.run, kitSel); S.kitPacked = true; save.run.activeNight = run.night;
     save.meta.monsterStats ||= {}; save.meta.monsterStats[S.L.monster.id] ||= { seen: 0, escaped: 0 }; save.meta.monsterStats[S.L.monster.id].seen++;
@@ -654,13 +680,15 @@ function finishNight() {
   const r = nightResult(S);
   unpackKit(save.run, S.kit); S.kit = []; renderKitSlots();
   const played = run.night; run.night++; // time passes either way; only the rent can end a run
-  const chip = (it, bad) => `<div class="rItem ${bad ? 'bad' : ''}">${icon('i_' + it.kind)}<span>${itemName(it.kind)}</span></div>`;
+  // loot as little cards that drop in one after another; lost loot is greyed out with a red cross
+  const chip = (it, bad, i = 0) => `<div class="rItem ${bad ? 'bad' : ''}" style="--d:${0.35 + i * 0.08}s"><span class="lootIc">${icon('i_' + it.kind)}${bad ? `<span class="rX">${icon('cross')}</span>` : ''}</span><span>${itemName(it.kind)}</span></div>`;
+  resKind(r.ok ? 'win' : 'lose');
   if (r.ok) {
     const { lost: noRoom } = stashLoot(save.run, r.items); const fresh = collect(save.meta, r.items.filter((it) => !noRoom.includes(it))); save.coins += r.bonus; save.escapes++; save.run.escapes++; save.run.stolen += r.items.length; save.bestNight = Math.max(save.bestNight, played);
     save.meta.monsterStats ||= {}; save.meta.monsterStats[S.L.monster.id] ||= { seen: 0, escaped: 0 }; save.meta.monsterStats[S.L.monster.id].escaped++;
     writeSave(save);
     $('resTitle').textContent = t('escaped');
-    $('resItems').innerHTML = r.items.filter((it) => !noRoom.includes(it)).map((it) => chip(it)).join('') + (noRoom.length ? `<div class="rl bad">${icon('bag')}${t('stashLost')}</div>` + noRoom.map((it) => chip(it, true)).join('') : '');
+    $('resItems').innerHTML = r.items.filter((it) => !noRoom.includes(it)).map((it, i) => chip(it, false, i)).join('') + (noRoom.length ? `<div class="rl bad">${icon('bag')}${t('stashLost')}</div>` + noRoom.map((it, i) => chip(it, true, i)).join('') : '');
     if (fresh.length) setTimeout(() => banner(t('newTrophy'), 1.4), 600);
     $('resLines').innerHTML = r.bonus ? `<div class="rl good">${icon('sparkles')}${t('bonus')} <span class="coin"></span><span class="num">+${r.bonus}</span></div>` : '';
     $('resTotal').innerHTML = `<span class="small">${icon('bag')}${t('toStash')}</span>`;
@@ -671,7 +699,7 @@ function finishNight() {
   } else {
     save.caught++; save.run.caught++; writeSave(save);
     $('resTitle').textContent = t('caught');
-    $('resItems').innerHTML = r.lost.map((it) => chip(it, true)).join('');
+    $('resItems').innerHTML = r.lost.map((it, i) => chip(it, true, i)).join('');
     $('resLines').innerHTML = ''; $('resTotal').innerHTML = '';
     $('resBtns').innerHTML = `<button class="kbtn yellow big" id="againBtn">${icon('moon')}<span class="num">${run.night}</span>${icon('play')}</button>
       <div class="rowBtns">${save.stash.length ? `<button class="kbtn green" id="mkGo">${icon('stall')}<span>${t('market')}</span></button>` : ''}<button class="kround grey" id="menuBtn2">${icon('home')}</button></div>`;
@@ -1127,16 +1155,22 @@ let shopSel = 'socks';
 function renderShop() {
   const MAX = RULES.upgrades.max, up = save.upgrades;
   $('shopCoins').textContent = save.coins;
+  // Two branches, each a row of nodes joined by a line (left to right = unlock order). A node: its icon in a
+  // round button, its name and five level pips. Locked nodes are grey with a lock; one you can afford glows.
+  // The panel on the right explains the selected skill and holds the only buy button.
+  const pips = (lv, cls = '') => `<span class="pips ${cls}">${Array.from({ length: MAX }, (_, i) => `<i class="${i < lv ? 'f' : ''}"></i>`).join('')}</span>`;
   const node = (k, col) => { const it = SHOP.find((s) => s.k === k), lv = upg(k), locked = skillLocked(k, up);
-    return `<button class="node ${locked ? 'locked' : ''} ${k === shopSel ? 'sel' : ''}" data-k="${k}"><span class="kround ${locked ? 'grey' : col}">${icon(locked ? 'lock' : it.ic)}</span><span class="nlv num">${lv}/${MAX}</span></button>`; };
-  const tree = BRANCHES.map((b) => `<div class="branch"><div class="bHead">${icon(b.id === 'thief' ? 'paw' : 'stall')}<span>${t(b.id === 'thief' ? 'branchThief' : 'branchTrade')}</span></div>${b.skills.map((k) => node(k, b.id === 'thief' ? 'green' : 'blue')).join('<i class="link"></i>')}</div>`).join('');
+    const can = !locked && lv < MAX && save.coins >= shopCost(k, lv);
+    return `<button class="node ${locked ? 'locked' : ''} ${k === shopSel ? 'sel' : ''} ${can ? 'can' : ''} ${lv >= MAX ? 'max' : ''}" data-k="${k}" title="${it.nm}"><span class="kround ${locked ? 'grey' : col}">${icon(it.ic)}${locked ? `<span class="nLock">${icon('lock')}</span>` : ''}</span><span class="nNm">${it.nm}</span>${pips(lv)}</button>`; };
+  const tree = BRANCHES.map((b) => `<div class="branch ${b.id}"><div class="bHead">${icon(b.id === 'thief' ? 'paw' : 'stall')}<span>${t(b.id === 'thief' ? 'branchThief' : 'branchTrade')}</span></div><div class="bRow">${b.skills.map((k) => node(k, b.id === 'thief' ? 'green' : 'blue')).join('<i class="link"></i>')}</div></div>`).join('');
   const it = SHOP.find((s) => s.k === shopSel), lv = upg(shopSel), locked = skillLocked(shopSel, up), max = lv >= MAX, c = shopCost(shopSel, lv);
   const req = RULES.upgrades.req[shopSel];
-  const action = locked ? `<div class="lockTxt">${icon('lock')}${t('locked', { skill: SHOP.find((s) => s.k === req[0]).nm, n: req[1] })}</div>`
-    : max ? `<button class="kbtn grey" disabled>${t('maxed')}</button>`
-    : `<button class="kbtn yellow" id="buySkill" ${save.coins < c ? 'disabled' : ''}><span class="coin"></span><span class="num">${c}</span></button>`;
+  const action = locked ? `<div class="lockTxt">${icon('lock')}<span>${t('locked', { skill: SHOP.find((s) => s.k === req[0]).nm, n: req[1] })}</span></div>`
+    : max ? `<div class="maxTxt">${icon('check')}<span>${t('maxed')}</span></div>`
+    : `<button class="kbtn yellow" id="buySkill" ${save.coins < c ? 'disabled' : ''}>${icon('up')}<span class="coin"></span><span class="num">${c}</span></button>`;
+  const branchCol = BRANCHES.find((b) => b.skills.includes(shopSel)).id === 'thief' ? 'green' : 'blue';
   $('shopList').innerHTML = `<div class="tree">${tree}</div>
-    <div class="skillInfo"><div class="sTop">${icon(it.ic)}<div><div class="nm">${it.nm}</div><div class="lv">${Array.from({ length: MAX }, (_, i) => `<i class="${i < lv ? 'f' : ''}"></i>`).join('')}</div></div></div><div class="ds">${it.ds()}</div>${action}</div>`;
+    <div class="skillInfo"><div class="sTop"><span class="kround ${locked ? 'grey' : branchCol}">${icon(it.ic)}</span><div><div class="nm">${it.nm}</div><div class="lvRow">${pips(lv, 'big')}<span class="num">${lv}/${MAX}</span></div></div></div><div class="ds">${it.ds()}</div>${action}</div>`;
   $('shopList').querySelectorAll('[data-k]').forEach((b) => { b.onclick = () => { shopSel = b.dataset.k; renderShop(); }; });
   const bb = $('buySkill'); if (bb) bb.onclick = () => {
     if (save.coins < c || skillLocked(shopSel, up) || upg(shopSel) >= MAX) return;
@@ -1146,7 +1180,7 @@ function renderShop() {
 
 // ---------------- UI wiring ----------------
 $('playBtn').onclick = () => { hide('menu'); if (!save.hints.mortStory && !autoplay && !Q.has('demo')) marketView.story('next'); else beginNight(); };
-$('sneakBtn').onclick = () => { startPlay(); };
+$('sneakBtn').onclick = () => { if (relicPending()) { sfx.deny(); hint('relic', t('relicLocked')); return; } startPlay(); };
 const marketView = createMarketView({
   $, show, hide, icon, t, line, itemName, save, writeSave, sfx, M, toon, AS, buildMerchant, buildTreasure, buildFurniture,
   scene, hemi, sun, moon, lantern, nestLight, candles, get player() { return player; },
@@ -1194,12 +1228,16 @@ function applySettings() {
   if (bloom) bloom.enabled = save.hq; if (gtao) gtao.enabled = save.hq;
 }
 function applyQuality() {
+  if (save.qualityAuto) save.quality = detectTier(renderer, isTouch);
   const q = save.quality || (isTouch ? 'med' : 'high');
   save.quality = q;
   save.hq = q === 'high';
+  scene.environment = q === 'low' ? null : envTex;
+  gov.setLooks(perfLooks()); // also syncs shadows + materials through applyPerf
   applySettings();
   resize();
   syncShadows();
+  sfx.lowPower = q === 'low'; // picked up when the audio context is created (first tap)
   sfx.setReverb(q !== 'low');
   if (motes) motes.visible = q !== 'low';
 }
@@ -1208,8 +1246,9 @@ function syncSettings() {
   set('setMusic', save.vol.music); set('setSfx', save.vol.sfx); set('setZoom', save.zoom);
   $('setMusicV').textContent = Math.round(save.vol.music * 100); $('setSfxV').textContent = Math.round(save.vol.sfx * 100); $('setZoomV').textContent = zoomName(save.zoom);
   $('setVibrate').classList.toggle('on', save.vibrate);
-  const curQ = save.quality || (isTouch ? 'med' : 'high');
+  const curQ = save.qualityAuto ? 'auto' : save.quality || (isTouch ? 'med' : 'high');
   const qList = [
+    { id: 'auto', label: t('qualityAuto') },
     { id: 'low', label: t('qualityLow') },
     { id: 'med', label: t('qualityMed') },
     { id: 'high', label: t('qualityHigh') },
@@ -1219,7 +1258,9 @@ function syncSettings() {
     qContainer.innerHTML = qList.map((q) => `<button class="qBtn ${q.id === curQ ? 'on' : ''}" data-q="${q.id}">${q.label}</button>`).join('');
     qContainer.querySelectorAll('[data-q]').forEach((b) => {
       b.onclick = () => {
-        save.quality = b.dataset.q;
+        save.qualityAuto = b.dataset.q === 'auto';
+        if (!save.qualityAuto) save.quality = b.dataset.q;
+        gov.full('settings'); // a fresh choice starts in full; the governor steps down again if it has to
         writeSave(save);
         applyQuality();
         syncSettings();
@@ -1246,6 +1287,24 @@ $('setVibrate').onclick = () => { save.vibrate = !save.vibrate; writeSave(save);
 $('settingsBtn').onclick = () => { hide('menu'); openSettings(); };
 $('pauseSettings').onclick = () => { hide('pause'); openSettings(); };
 $('settingsClose').onclick = () => { writeSave(save); hide('settings'); if (paused) show('pause'); else if (mode === 'menu') show('menu'); };
+// frame-rate governor (perf.js): shadows / materials / 30 fps cap while a night runs slow, back up with headroom.
+// It never touches the resolution.
+const perfLooks = () => looks(save.qualityAuto, save.quality);
+let liteApplied = false;
+function syncLite() { const on = liteOn(); if (on || liteApplied) setLite(scene, on); liteApplied = on; }
+function applyPerf(step, why) {
+  const lookChanged = step.shadows !== perfStep.shadows || step.lite !== perfStep.lite;
+  perfStep = step;
+  if (lookChanged || why === 'looks' || why === 'settings') { syncShadows(); syncLite(); } // the cap alone needs neither
+  if (why !== 'looks' && (save.perfLook !== gov.look || save.perfCap !== gov.cap)) { save.perfLook = gov.look; save.perfCap = gov.cap; writeSave(save); }
+  if (Q.has('perf')) console.log('[perf]', JSON.stringify(step), why);
+}
+const gov = createGovernor({ looks: perfLooks(), look: save.perfLook || 0, cap: !!save.perfCap, apply: applyPerf });
+perfStep = gov.step();
+// 120 Hz panels: play at 60 fps (half the GPU work and heat); 60 / 90 Hz run at their own rate
+let refreshMs = 16.7, refreshCap = 0;
+measureRefresh((ms) => { refreshMs = Math.min(ms, 16.7); refreshCap = ms < 10 ? 1000 / 60 : 0; }); // boot jank only lengthens frames
+const playMinMs = () => Math.max(refreshCap, perfStep.cap || 0);
 applyQuality();
 document.querySelectorAll('[data-close]').forEach((b) => { b.onclick = () => {
   hide(b.dataset.close);
@@ -1335,11 +1394,60 @@ function audioAmbience(dt) {
   if (left < 12 && Math.random() < dt * 0.8) sfx.bird();
   if (S.state === 'play' && Math.random() < dt / 18) sfx.houseCreak();
 }
-let last = performance.now(), hudT = 0;
+let last = performance.now(), hudT = 0, liteSweepT = 0;
+// Once the furniture has settled in, bake everything in the room that never moves again into one mesh per
+// material (lite.js): ~300 draw calls become a few dozen, the biggest CPU cost on entry-level phones.
+function mergeWorld() {
+  world.userData.merged = true;
+  if (Q.has('nomerge')) return;
+  const dyn = new Set();
+  const add = (x) => { if (!x) return; if (x.isObject3D) { dyn.add(x); return; } if (typeof x === 'object') for (const v of Object.values(x)) if (v && v.isObject3D) dyn.add(v); };
+  for (const v of Object.values(props)) { if (v instanceof Map) v.forEach(add); else if (Array.isArray(v)) v.forEach(add); else add(v); }
+  for (const b of S.bodies || []) if (b.view) dyn.add(b.view.pivot);
+  fxHidden.forEach((o) => dyn.add(o));
+  if (MO) dyn.add(MO.group);
+  mergeJob = { world, it: mergeStaticJob(world, (o) => dyn.has(o)) };
+}
+let mergeJob = null;
+// a few ms of merging per frame, so the night card and its buttons stay responsive while the room is baked
+function runMerge(budgetMs) {
+  if (!mergeJob) return;
+  if (mergeJob.world !== world) { mergeJob = null; return; } // the room was rebuilt meanwhile
+  const t0 = performance.now();
+  for (;;) {
+    const r = mergeJob.it.next();
+    if (r.done) { if (Q.has('perf')) console.log('[perf] merged', r.value.before, '→', r.value.after, 'meshes'); mergeJob = null; return; }
+    if (performance.now() - t0 > budgetMs) return;
+  }
+}
+// Shader warm-up: whenever a new room (menu, hideout, market, night) is built, its shaders are compiled in the
+// background (KHR_parallel_shader_compile) while the last frame stays on screen. Drawing right away would stall
+// the page until every shader is compiled — the freeze after tapping a button on slow phones.
+// The compile starts after a short timeout, so the screen the button opened (night card, wardrobe...) is painted
+// first. A night room is also held back until it is baked (runMerge), so its ~2000 loose meshes are never drawn.
+let warmWorld = null, compiling = false, holdUntil = 0;
+function warmUp() {
+  warmWorld = world;
+  if (!renderer.compileAsync || Q.has('nowarm')) return;
+  if (liteOn()) setLite(scene, true); // swap before compiling and baking: only the materials that will be drawn
+  compiling = true; holdUntil = performance.now() + 2500; // never hold the picture longer than this
+  const w = world, done = () => { if (warmWorld === w) compiling = false; };
+  setTimeout(() => { if (warmWorld === w) renderer.compileAsync(scene, camera).then(done, done); }, 30);
+}
+const holding = () => (compiling || (liteOn() && mergeJob && mergeJob.world === world)) && performance.now() < holdUntil;
 function frame(now) {
   requestAnimationFrame(frame);
   if (mode !== 'play' && now - last < 1000 / 32) return; // menus, market, hideout: 30 fps is plenty and saves battery
-  let dt = Math.min(0.05, (now - last) / 1000); last = now;
+  const minMs = mode === 'play' ? playMinMs() : 0;
+  if (minMs && now - last < minMs - 2) return; // -2: rAF timestamps jitter around the vsync
+  const raw = (now - last) / 1000;
+  let dt = Math.min(0.05, raw); last = now;
+  if (mode === 'play' && !paused && !document.hidden && S && !autoplay) gov.sample(raw, Math.max(refreshMs, refreshCap));
+  if ((liteSweepT -= raw) <= 0) { liteSweepT = 0.5; if (liteOn()) setLite(scene, true); } // new objects (treasures, costumes) get the simple materials too
+  if (world !== warmWorld) warmUp();
+  if (L && S && !world.userData.merged && !world.children.some((g) => g.userData.settle)) mergeWorld();
+  runMerge(holding() ? 12 : 4); // nothing is drawn while holding: merge faster
+  if (holding()) { const tx = levelTex.find((x) => !x.userData.up); if (tx) { renderer.initTexture(tx); tx.userData.up = true; } } // upload one room texture per frame instead of all on the first one
   if (paused) dt = 0;
   time += dt;
   if (mode === 'play' && S) {
@@ -1352,6 +1460,7 @@ function frame(now) {
   marketView.update(dt);
   input.enabled = mode === 'play' && !paused;
   animate(dt); updateCamera(dt); updateFloaters(dt);
+  if (holding() && mode !== 'play') return; // keep the last frame until the new room is compiled (and baked)
   if (composer) composer.render(dt);
   else renderer.render(scene, camera);
 }
@@ -1408,9 +1517,10 @@ AS.loadAssets((p) => { playLabel(t('loading', { p: Math.round(p * 100) })); spla
 window.GAME = {
   get S() { return S; }, get sfx() { return sfx; }, get L() { return L; }, get MO() { return MO; }, get player() { return player; }, RULES,
   startNight(n, seed) { hide('menu'); hide('how'); hide('result'); run.night = n; newNight(seed); startPlay(); },
-  get save() { return save; }, setMode: (m) => { mode = m; }, dress: (w) => dress(w || save.meta.wear), beginNight: () => beginNight(), gameOver: () => gameOver(),
+  get save() { return save; }, setMode: (m) => { mode = m; }, dress: (w) => dress(w || save.meta.wear), beginNight: () => beginNight(), gameOver: () => gameOver(), finishNight: () => finishNight(),
   audioReport: () => audioReport(sfx.samples),
   tick(sec, inp) { for (let i = 0; i < sec * 60; i++) { if (mode === 'play' && S) { step(S, 1 / 60, inp || (autoplay ? bot(S, 1 / 60) : input.get())); handleEvents(); if (S.done && mode === 'play') finishNight(); } time += 1 / 60; animate(1 / 60); } updateCamera(1); updateHud(); debugLog(); if (composer) composer.render(1 / 60); else renderer.render(scene, camera); },
   setAutoplay(v) { autoplay = v; },
+  get perf() { return { gpu: GPU, quality: save.quality, auto: save.qualityAuto, look: gov.look, cap: gov.cap, step: perfStep, lite: liteOn(), refreshMs, playMinMs: playMinMs(), pixelRatio: renderer.getPixelRatio(), calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, programs: renderer.info.programs.length }; }, gov,
 };
 window.__dwtm = window.GAME;

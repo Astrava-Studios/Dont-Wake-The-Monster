@@ -8,7 +8,7 @@ export const MARKET_UI = {
     maxed: 'MAX', buy: 'Buy', level: 'Level {n}', bonus: 'Reputation', toStash: 'Added to stash', pickItem: 'Pick an item to sell',
     cAskLo: 'How about {n}?', cAskMid: '{n}, a fair price.', cAskHi: 'At least {n}!', sellTab: 'Sell', buyTab: 'Buy', gearH: 'Gear (whole run)', suppliesH: 'Supplies', owned: 'Owned', have: '×{n}', rent: 'Rent', rentIn: '{n} nights', rentDueTitle: 'Rent day!', rentDueText: 'The guild wants {n} coins.', pay: 'Pay', sellFirst: 'Sell first', giveUp: 'Give up', gameOver: 'Game over', gameOverText: 'You could not pay the rent: the guild took your hideout and your stash.', sumNights: 'Nights', sumSold: 'Sold', sumRents: 'Rents paid', newRun: 'New run', bagFull: 'Bag full', kitTitle: 'Take tonight (max 3)', wants: 'Wants', dislikes: 'Avoids', crack: 'Cracked!', damaged: 'Damaged', hintCrack: 'Fragile things crack when you run!', hintCurse: 'A cursed item is making noise!', continueRun: 'Continue', estCeil: 'Pays at most', relation: 'Mood',
     hintTake: 'Hold Take next to an item — rummaging makes noise!',
-    cAccept: 'Deal, {n}.', cFlatter: 'An expert like you...', cLeave: 'I\'ll keep it.',
+    askMore: 'Ask for more', cAccept: 'Deal, {n}.', cFlatter: 'An expert like you...', cLeave: 'I\'ll keep it.',
   },
   zh: {
     storyNext: "继续", storyOk: "我会付的……",
@@ -17,7 +17,7 @@ export const MARKET_UI = {
     maxed: '满级', buy: '购买', level: '{n}级', bonus: '名声', toStash: '已放入藏货', pickItem: '选一件要卖的东西',
     cAskLo: '{n}怎么样？', cAskMid: '{n}，公道价。', cAskHi: '至少{n}！', sellTab: '卖', buyTab: '买', gearH: '装备（整局有效）', suppliesH: '补给', owned: '已拥有', have: '×{n}', rent: '房租', rentIn: '{n}晚', rentDueTitle: '交租日！', rentDueText: '公会要{n}金币。', pay: '支付', sellFirst: '先去卖', giveUp: '放弃', gameOver: '游戏结束', gameOverText: '你付不起房租：公会收走了你的藏身处和藏货。', sumNights: '夜晚', sumSold: '卖出', sumRents: '已付房租', newRun: '新的一局', bagFull: '袋子满了', kitTitle: '今晚带上（最多3个）', wants: '想要', dislikes: '不要', crack: '裂了！', damaged: '已损坏', hintCrack: '易碎品在奔跑时会裂开！', hintCurse: '被诅咒的物品在发出声音！', continueRun: '继续', estCeil: '最多出', relation: '心情',
     hintTake: '在物品旁按住“拿”——翻找会发出声音！',
-    cAccept: '成交，{n}。', cFlatter: '像您这样的行家……', cLeave: '我不卖了。',
+    askMore: '再要高点', cAccept: '成交，{n}。', cFlatter: '像您这样的行家……', cLeave: '我不卖了。',
   },
   tr: {
     storyNext: "Devam", storyOk: "Ödeyeceğim...",
@@ -26,7 +26,7 @@ export const MARKET_UI = {
     maxed: 'MAKS', buy: 'Al', level: 'Seviye {n}', bonus: 'Şöhret', toStash: 'Zulaya eklendi', pickItem: 'Satmak için bir eşya seç',
     cAskLo: '{n} olsun mu?', cAskMid: '{n}, adil fiyat.', cAskHi: 'En az {n}!', sellTab: 'Sat', buyTab: 'Al', gearH: 'Ekipman (koşu boyunca)', suppliesH: 'Sarf malzemeleri', owned: 'Sende', have: '×{n}', rent: 'Kira', rentIn: '{n} gece', rentDueTitle: 'Kira günü!', rentDueText: 'Lonca {n} altın istiyor.', pay: 'Öde', sellFirst: 'Önce sat', giveUp: 'Pes et', gameOver: 'Oyun bitti', gameOverText: 'Kirayı ödeyemedin; lonca sığınağını ve zulanı aldı.', sumNights: 'Gece', sumSold: 'Satış', sumRents: 'Ödenen kira', newRun: 'Yeni koşu', bagFull: 'Çanta dolu', kitTitle: 'Bu geceye al (en fazla 3)', wants: 'Arıyor', dislikes: 'İstemiyor', crack: 'Çatladı!', damaged: 'Hasarlı', hintCrack: 'Kırılgan eşyalar koşarken çatlar!', hintCurse: 'Lanetli eşya ses çıkarıyor!', continueRun: 'Devam', estCeil: 'En fazla verir', relation: 'Keyfi',
     hintTake: 'Eşyanın yanında Al düğmesine basılı tut — karıştırmak ses çıkarır!',
-    cAccept: 'Anlaştık, {n}.', cFlatter: 'Sizin gibi bir uzman...', cLeave: 'Vazgeçtim.',
+    askMore: 'Daha fazla iste', cAccept: 'Anlaştık, {n}.', cFlatter: 'Sizin gibi bir uzman...', cLeave: 'Vazgeçtim.',
   },
   ru: {
     storyNext: "Дальше", storyOk: "Я заплачу...",
@@ -35,7 +35,7 @@ export const MARKET_UI = {
     maxed: 'МАКС', buy: 'Купить', level: 'Уровень {n}', bonus: 'Слава', toStash: 'Добавлено в тайник', pickItem: 'Выбери вещь для продажи',
     cAskLo: 'Может, {n}?', cAskMid: '{n} — честная цена.', cAskHi: 'Не меньше {n}!', sellTab: 'Продать', buyTab: 'Купить', gearH: 'Снаряжение (на весь забег)', suppliesH: 'Расходники', owned: 'Есть', have: '×{n}', rent: 'Аренда', rentIn: '{n} ноч.', rentDueTitle: 'День аренды!', rentDueText: 'Гильдия требует {n} монет.', pay: 'Заплатить', sellFirst: 'Сначала продать', giveUp: 'Сдаться', gameOver: 'Игра окончена', gameOverText: 'Ты не смог заплатить аренду: гильдия забрала убежище и тайник.', sumNights: 'Ночи', sumSold: 'Продано', sumRents: 'Аренд оплачено', newRun: 'Новый забег', bagFull: 'Сумка полна', kitTitle: 'Взять на ночь (до 3)', wants: 'Ищет', dislikes: 'Не берёт', crack: 'Треснуло!', damaged: 'Повреждено', hintCrack: 'Хрупкие вещи трескаются на бегу!', hintCurse: 'Проклятая вещь шумит!', continueRun: 'Продолжить', estCeil: 'Даст не больше', relation: 'Настроение',
     hintTake: 'Держи «Взять» рядом с вещью — возня шумит!',
-    cAccept: 'Договорились, {n}.', cFlatter: 'Такой знаток, как вы...', cLeave: 'Оставлю себе.',
+    askMore: 'Просить больше', cAccept: 'Договорились, {n}.', cFlatter: 'Такой знаток, как вы...', cLeave: 'Оставлю себе.',
   },
 };
 
