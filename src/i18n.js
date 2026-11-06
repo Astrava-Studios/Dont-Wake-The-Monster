@@ -12,7 +12,7 @@ export const LANGS = [
 const D = {
   en: {
     mSkills: 'Skills', mHideout: 'Hideout', mMarket: 'Market', mWardrobe: 'Wardrobe', mBook: 'Handbook',
-    play: 'Play', loading: 'Loading… {p}%', ok: 'OK', back: 'Back', start: 'Start', resume: 'Resume',
+    play: 'Play', loading: 'Loading… {p}%', ok: 'OK', back: 'Back', start: 'Start', resume: 'Resume', tapStart: 'Tap to start',
     shop: 'Shop', help: 'How to play', settings: 'Settings', pause: 'Pause', quit: 'Give up', paused: 'Paused',
     lullaby: 'Lullaby', drop: 'Drop', dawnLeft: 'Time until dawn', bestNight: 'Best night',
     howTitle: 'How to play?', how1: 'Small push: quiet<br>Full push: run', how2: 'Hurry while<br>it snores',
@@ -33,7 +33,7 @@ const D = {
   },
   zh: {
     mSkills: '技能', mHideout: '藏身处', mMarket: '黑市', mWardrobe: '衣柜', mBook: '秘典',
-    play: '开始', loading: '加载中… {p}%', ok: '好的', back: '返回', start: '出发', resume: '继续',
+    play: '开始', loading: '加载中… {p}%', ok: '好的', back: '返回', start: '出发', resume: '继续', tapStart: '点击开始',
     shop: '商店', help: '玩法', settings: '设置', pause: '暂停', quit: '放弃', paused: '已暂停',
     lullaby: '摇篮曲', drop: '丢下', dawnLeft: '距天亮', bestNight: '最佳夜晚',
     howTitle: '怎么玩？', how1: '轻推：安静<br>推满：奔跑', how2: '它打呼噜时<br>快走', how3: '它看过来时<br>停下或躲起来', how4: '带着宝藏<br>回到门口',
@@ -51,7 +51,7 @@ const D = {
   },
   tr: {
     mSkills: 'Yetenek', mHideout: 'Sığınak', mMarket: 'Karaborsa', mWardrobe: 'Gardırop', mBook: 'El Kitabı',
-    play: 'Oyna', loading: 'Yükleniyor… {p}%', ok: 'Tamam', back: 'Geri', start: 'Başla', resume: 'Devam',
+    play: 'Oyna', loading: 'Yükleniyor… {p}%', ok: 'Tamam', back: 'Geri', start: 'Başla', resume: 'Devam', tapStart: 'Başlamak için dokun',
     shop: 'Dükkan', help: 'Nasıl oynanır', settings: 'Ayarlar', pause: 'Duraklat', quit: 'Pes et', paused: 'Durdu',
     lullaby: 'Ninni', drop: 'Bırak', dawnLeft: 'Şafağa kalan', bestNight: 'En iyi gece',
     howTitle: 'Nasıl?', how1: 'Az it: sessiz<br>Tam it: koş', how2: 'Horlarken<br>hızlan', how3: 'Bakınca dur<br>ya da saklan', how4: 'Ganimetle<br>kapıya dön',
@@ -69,7 +69,7 @@ const D = {
   },
   ru: {
     mSkills: 'Навыки', mHideout: 'Убежище', mMarket: 'Рынок', mWardrobe: 'Гардероб', mBook: 'Справочник',
-    play: 'Играть', loading: 'Загрузка… {p}%', ok: 'ОК', back: 'Назад', start: 'Начать', resume: 'Продолжить',
+    play: 'Играть', loading: 'Загрузка… {p}%', ok: 'ОК', back: 'Назад', start: 'Начать', resume: 'Продолжить', tapStart: 'Нажмите, чтобы начать',
     shop: 'Магазин', help: 'Как играть', settings: 'Настройки', pause: 'Пауза', quit: 'Сдаться', paused: 'Пауза',
     lullaby: 'Колыбельная', drop: 'Бросить', dawnLeft: 'До рассвета', bestNight: 'Лучшая ночь',
     howTitle: 'Как играть?', how1: 'Чуть толкни: тихо<br>До упора: бег', how2: 'Спеши, пока<br>он храпит', how3: 'Замри или спрячься,<br>когда смотрит', how4: 'Неси добычу<br>к двери',
