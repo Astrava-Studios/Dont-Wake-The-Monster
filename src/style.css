@@ -902,7 +902,16 @@ input[type=range]::-moz-range-thumb { width: 30px; height: 30px; border: none; b
 .skillInfo .lv i.f { background-image: url('/ui/star.png'); filter: none; }
 .skillInfo .ds { font-size: 14px; color: var(--ink2); }
 .lockTxt { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; color: #b02a37; } .lockTxt .i { width: 18px; height: 18px; }
-#marketBtn .badge { right: -4px; top: -4px; }
+/* the merchant's stall sign in the menu scene: follows the 3D stall (menuScene.js), tap = Market */
+.stallTag { position: absolute; left: 0; top: 0; z-index: 2; transform: translate(-50%, -100%); display: flex; align-items: center; gap: 6px;
+  padding: 6px 12px 6px 9px; border-radius: 999px; border: 2px solid #e0b040; background: rgba(32, 20, 40, .82); color: #ffd866;
+  font-weight: 900; font-size: 14px; letter-spacing: .02em; white-space: nowrap; cursor: pointer; animation: stallBob 2.4s ease-in-out infinite;
+  box-shadow: 0 3px 0 rgba(0,0,0,.35), 0 0 0 rgba(255,184,77,0); transition: box-shadow .15s, background .15s; }
+.stallTag i { width: 18px; height: 18px; display: inline-flex; }
+.stallTag .badge { right: -10px; top: -10px; }
+.stallTag.hot, .stallTag:hover { background: rgba(70, 40, 20, .92); box-shadow: 0 3px 0 rgba(0,0,0,.35), 0 0 18px rgba(255,184,77,.7); }
+.stallTag:active { transform: translate(-50%, -100%) scale(.96); }
+@keyframes stallBob { 0%, 100% { margin-top: 0; } 50% { margin-top: -4px; } }
 #lootPill .i { width: 20px; height: 20px; color: #b07800; }
 
 /* ---------- black market: tabs, demand / rent chips, buy list ---------- */
