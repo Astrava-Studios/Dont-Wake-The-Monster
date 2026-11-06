@@ -9,6 +9,7 @@
   <link rel="icon" type="image/png" href="/icon.png" />
   <link rel="apple-touch-icon" href="/icon.png" />
   <title>Don't Wake the Monster</title>
+  <link rel="preload" href="/ui/kenney-future.ttf" as="font" type="font/ttf" crossorigin />
   </head>
 <body>
   <div id="app">
@@ -18,6 +19,18 @@
     <div id="touch"></div>
     <div id="joy"><div id="joyInner"></div><div id="knob"></div></div>
     <div id="floaters"></div>
+
+    <!-- SPLASH: static so it shows before any script; main.js fills the bar and fades it out -->
+    <div id="splash" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+      <div class="splashLogo title">
+        <div class="zzz" aria-hidden="true"><span>z</span><span>z</span><span>Z</span></div>
+        <div class="t1">DON'T WAKE</div>
+        <div class="t2">THE MONSTER</div>
+      </div>
+      <div class="splashBar"><div id="splashFill"></div></div>
+      <div class="splashPct num" id="splashPct">0%</div>
+      <div class="splashTip" id="splashTip"></div>
+    </div>
 
     <!-- Dikey ekran uyarısı -->
     <div id="rotate-hint">

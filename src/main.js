@@ -1349,8 +1349,20 @@ hydrateIcons();
 const playLabel = (t) => { $('playBtn').querySelector('span').textContent = t; };
 applyStatic();
 $('playBtn').disabled = true; playLabel(t('loading', { p: 0 }));
+// splash: progress bar + rotating gameplay hints until the models are in, then fade to the menu
+const splashTips = ['hintSnore', 'hintPeek', 'hintSqueak', 'hintCat', 'hintChase', 'hintMove'].map((k) => t(k));
+let splashTipAt = Math.floor(Math.random() * splashTips.length);
+const showSplashTip = () => { $('splashTip').textContent = splashTips[splashTipAt++ % splashTips.length]; };
+const splashTimer = setInterval(() => { $('splashTip').classList.add('fade'); setTimeout(() => { showSplashTip(); $('splashTip').classList.remove('fade'); }, 350); }, 3500);
+showSplashTip();
+const splashProgress = (p) => {
+  const pct = Math.round(p * 100);
+  $('splashFill').style.width = pct + '%'; $('splashPct').textContent = pct + '%'; $('splash').setAttribute('aria-valuenow', pct);
+};
+const endSplash = () => { splashProgress(1); clearInterval(splashTimer); const el = $('splash'); el.classList.add('done'); setTimeout(() => el.remove(), 500); };
 requestAnimationFrame(frame);
-AS.loadAssets((p) => { playLabel(t('loading', { p: Math.round(p * 100) })); }, { skip: Q.has('noassets') }).then(() => {
+AS.loadAssets((p) => { playLabel(t('loading', { p: Math.round(p * 100) })); splashProgress(p); }, { skip: Q.has('noassets') }).then(() => {
+  endSplash();
   useRoguePlayer();
   $('playBtn').disabled = false; playLabel(t('play'));
   if (Q.has('gallery')) return showGallery();
