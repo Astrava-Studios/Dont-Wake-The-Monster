@@ -1,3 +1,4 @@
+import { CORE_TRANSLATIONS } from './i18n-in-progress.js';
 // Translations: English, 中文, Türkçe, Русский. Pure module (works in node for tests).
 // t('key', {n: 5}) fills {n}. Static HTML uses data-i18n / data-i18n-html / data-i18n-aria / data-i18n-title.
 import { MARKET_UI, MARKET_DATA } from './i18n-market.js';
@@ -7,6 +8,8 @@ export const LANGS = [
   { id: 'zh', name: '中文' },
   { id: 'tr', name: 'Türkçe' },
   { id: 'ru', name: 'Русский' },
+  { id: 'es', name: 'Español' },
+  { id: 'az', name: 'Azərbaycanca' },
 ];
 
 const D = {
@@ -372,12 +375,20 @@ const DATA = {
   },
 };
 
+// Other sections use English until their translations are ready.
+for (const id of ['es', 'az']) {
+  D[id] = CORE_TRANSLATIONS[id];
+  DATA[id] = DATA.en;
+  MARKET_UI[id] = MARKET_UI.en; MARKET_DATA[id] = MARKET_DATA.en;
+  HIDE_UI[id] = HIDE_UI.en; HIDE_DATA[id] = HIDE_DATA.en;
+}
+
 let lang = 'tr';
 export const getLang = () => lang;
 export function setLang(l) { lang = D[l] ? l : 'en'; if (typeof document !== 'undefined') document.documentElement.lang = lang === 'zh' ? 'zh-CN' : lang; }
 export function detectLang() {
   const n = (typeof navigator !== 'undefined' && navigator.language || 'en').toLowerCase();
-  return n.startsWith('tr') ? 'tr' : n.startsWith('zh') ? 'zh' : n.startsWith('ru') ? 'ru' : 'en';
+  return n.startsWith('es') ? 'es' : n.startsWith('az') ? 'az' : n.startsWith('tr') ? 'tr' : n.startsWith('zh') ? 'zh' : n.startsWith('ru') ? 'ru' : 'en';
 }
 const fill = (s, p) => s.replace(/\{(\w+)\}/g, (_, k) => (p[k] ?? ''));
 export function t(key, p = {}) { return fill(D[lang][key] ?? MARKET_UI[lang][key] ?? HIDE_UI[lang][key] ?? D.en[key] ?? MARKET_UI.en[key] ?? HIDE_UI.en[key] ?? key, p); }
