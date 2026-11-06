@@ -1165,6 +1165,7 @@ const hideoutView = createHideoutView({
 const menuScene = createMenuScene({
   M, toon, AS, buildNest, buildTreasure, buildFurniture, scene, hemi, sun, moon, lantern, nestLight, candles, get player() { return player; },
   clearWorld: () => { clearWorld(); hideoutView.leaveScene(); return world; },
+  snore: () => { if (!document.hidden) sfx.snore(2.2, undefined, undefined, 0.4); },
 });
 $('wardrobeBtn').onclick = () => hideoutView.openWardrobe();
 $('hideoutBtn').onclick = () => hideoutView.openHideout();

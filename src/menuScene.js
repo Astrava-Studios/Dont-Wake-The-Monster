@@ -4,16 +4,21 @@
 import * as THREE from 'three';
 import { THEMES, MONSTERS } from './level.js';
 
-const CYCLE = 9, WARN = [5.0, 5.8], OPEN = [5.8, 7.6]; // seconds within the loop: eye twitch, then eye open
+// eye peeks: first one soon after the menu opens, then every 8-14 s; an eye twitch, then the eye stays open a while
+const FIRST = [3.5, 5.5], GAP = [8, 14], WARN = 0.8, OPEN = [1.3, 2.3];
+const SNORE = [5.5, 8]; // seconds between soft snores (never while the eye is open)
 const A = new THREE.Vector3(-3.7, 0, 1.1), B = new THREE.Vector3(-1.0, 0, 1.0); // the thief's sneaking line
 const SPEED = 0.32;
+const rnd = ([a, b]) => a + Math.random() * (b - a);
 
 export function createMenuScene(d) {
   const { M, toon, AS } = d;
-  const V = { built: false, t: 0, m: 0, peek: 'none', dir: 1, u: 0, wait: 0, home: { x: 2.4, z: -1.9, yaw: -0.45 }, monster: MONSTERS[0] };
+  const V = { built: false, m: 0, peek: 'none', peekT: 0, snoreT: 0, dir: 1, u: 0, wait: 0, home: { x: 2.4, z: -1.9, yaw: -0.45 }, monster: MONSTERS[0] };
 
   function build() {
-    const w = d.clearWorld(); V.built = true; V.t = 0; V.u = 0.15; V.dir = 1; V.wait = 0;
+    const w = d.clearWorld(); V.built = true; V.u = 0.15; V.dir = 1; V.wait = 0;
+    V.monster = MONSTERS[Math.floor(Math.random() * MONSTERS.length)]; // a different sleeper each time the menu opens
+    V.peek = 'none'; V.peekT = rnd(FIRST); V.snoreT = 1.5;
     const th = THEMES[0];
     d.scene.background = new THREE.Color('#140e22');
     const wood = toon('#5e3f2c'), dark = toon('#3b2619'), wall = toon('#4b3d72'), wall2 = toon('#3d3160'), trim = toon(th.trim);
@@ -53,8 +58,14 @@ export function createMenuScene(d) {
   }
   function update(dt) {
     if (!V.built) return;
-    V.t += dt; const c = V.t % CYCLE;
-    V.peek = c >= OPEN[0] && c < OPEN[1] ? 'open' : c >= WARN[0] && c < WARN[1] ? 'warn' : 'none';
+    V.peekT -= dt;
+    if (V.peekT <= 0) {
+      if (V.peek === 'none') { V.peek = 'warn'; V.peekT = WARN; }
+      else if (V.peek === 'warn') { V.peek = 'open'; V.peekT = rnd(OPEN); }
+      else { V.peek = 'none'; V.peekT = rnd(GAP); V.snoreT = Math.max(V.snoreT, 1.2); }
+    }
+    V.snoreT -= dt;
+    if (V.snoreT <= 0) { V.snoreT = rnd(SNORE); if (V.peek === 'none' && d.snore) d.snore(); }
     const p = d.player;
     if (V.peek === 'open') V.m = 0; // freeze!
     else if (V.wait > 0) { V.wait -= dt; V.m = 0; if (V.wait <= 0) V.dir = -V.dir; }
