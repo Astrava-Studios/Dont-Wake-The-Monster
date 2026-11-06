@@ -115,15 +115,18 @@ export function createMarketView(d) {
 
   // ---------- UI ----------
   function coins() { $('mkCoins').textContent = save.coins; }
-  // tabs + today's demand + rent: the strip above both tabs
+  // Header of both tabs: a segmented Sell / Buy switch, then today's wishes and the rent as small pills.
+  // Icons carry the meaning (the wanted item + a green arrow, the unwanted one + a red arrow); the words only
+  // show where there is room, and every pill has a tooltip.
   function strip() {
     const r = run(), dm = demand(), due = rentDueNow(r), amt = rentAmount(r.rentIdx);
+    const up = Math.round((RULES.market.wantMult - 1) * 100), down = Math.round((1 - RULES.market.dislikeMult) * 100);
     const rent = due
-      ? `<button class="chip rent due" id="mkPayRent" ${r.coins < amt ? 'disabled' : ''}>${icon('bank')}<span>${t('pay')}</span><span class="coin"></span><span class="num">${amt}</span></button>`
-      : `<span class="chip rent">${icon('bank')}<span class="num">${amt}</span><span>· ${t('rentIn', { n: nightsToRent(r) })}</span></span>`;
-    return `<div class="mkStrip"><div class="mkTabs"><button class="tab ${V.tab === 'sell' ? 'on' : ''}" data-tab="sell">${t('sellTab')}</button><button class="tab ${V.tab === 'buy' ? 'on' : ''}" data-tab="buy">${t('buyTab')}</button></div>
-      <div class="chips"><span class="chip good" title="${t('wants')}">${icon('i_' + dm.want)}<span>${t('wants')}</span><b>+${Math.round((RULES.market.wantMult - 1) * 100)}%</b></span>
-        <span class="chip bad" title="${t('dislikes')}">${icon('i_' + dm.dislike)}<span>${t('dislikes')}</span><b>−${Math.round((1 - RULES.market.dislikeMult) * 100)}%</b></span>${rent}</div></div>`;
+      ? `<button class="pill rent due" id="mkPayRent" ${r.coins < amt ? 'disabled' : ''}>${icon('bank')}<span>${t('pay')}</span><span class="coin"></span><span class="num">${amt}</span></button>`
+      : `<span class="pill rent" title="${t('rent')}: ${amt} · ${t('rentIn', { n: nightsToRent(r) })}">${icon('bank')}<span class="num">${amt}</span><span class="pSub">${icon('moon')}<span class="num">${nightsToRent(r)}</span></span></span>`;
+    return `<div class="mkStrip"><div class="mkTabs seg"><button class="tab ${V.tab === 'sell' ? 'on' : ''}" data-tab="sell">${icon('bag')}<span>${t('sellTab')}</span></button><button class="tab ${V.tab === 'buy' ? 'on' : ''}" data-tab="buy">${icon('cart')}<span>${t('buyTab')}</span></button></div>
+      <div class="pills"><span class="pill up" title="${t('wants')} +${up}%: ${itemName(dm.want)}">${icon('i_' + dm.want)}<span class="pLbl">${t('wants')}</span>${icon('up', 'arr')}<b>${up}%</b></span>
+        <span class="pill down" title="${t('dislikes')} −${down}%: ${itemName(dm.dislike)}">${icon('i_' + dm.dislike)}<span class="pLbl">${t('dislikes')}</span>${icon('down', 'arr')}<b>${down}%</b></span>${rent}</div></div>`;
   }
   function exits() {
     return V.from === 'run'
@@ -145,13 +148,15 @@ export function createMarketView(d) {
   function renderStash() {
     V.deal = null; putOnCounter(null); coins();
     const st = save.stash, dm = demand();
+    // one card per stolen item: big icon, name, what he pays at most; wanted / unwanted / damaged as corner badges
     const cards = st.map((it, i) => {
       const tag = it.kind === dm.want ? 'want' : it.kind === dm.dislike ? 'dislike' : '';
-      const dmg = (it.cond ?? 1) < 0.999 ? `<span class="dmg" title="${t('damaged')}">${icon('crack')}${Math.round((it.cond ?? 1) * 100)}%</span>` : '';
-      return `<button class="itemCard ${tag} ${isRefused(it) ? 'off' : ''}" data-i="${i}">${dmg}${icon('i_' + it.kind)}<span class="inm">${itemName(it.kind)}</span><span class="iest"><span class="coin"></span><span class="num">${fmtEst(it)}</span></span></button>`;
+      const badge = tag === 'want' ? `<span class="lootTag up">${icon('up')}</span>` : tag === 'dislike' ? `<span class="lootTag down">${icon('down')}</span>` : '';
+      const dmg = (it.cond ?? 1) < 0.999 ? `<span class="dmg" title="${t('damaged')}">${icon('crack')}<span>${Math.round((it.cond ?? 1) * 100)}%</span></span>` : '';
+      return `<button class="loot ${tag} ${isRefused(it) ? 'off' : ''}" data-i="${i}" title="${t('estCeil')}: ${fmtEst(it)}">${badge}${dmg}<span class="lootIc">${icon('i_' + it.kind)}</span><span class="lootNm">${itemName(it.kind)}</span><span class="lootPr"><span class="coin"></span><span class="num">${fmtEst(it)}</span></span></button>`;
     }).join('');
-    $('mkSheet').innerHTML = `${strip()}<div class="mkHead"><span>${icon('bag')}${t('stash')}</span><span class="small">${t('estCeil')}</span></div>
-      ${st.length ? `<div class="itemGrid">${cards}</div>` : `<p class="mkEmpty">${t('emptyStash')}</p>`}
+    $('mkSheet').innerHTML = `${strip()}
+      ${st.length ? `<div class="itemGrid lootGrid">${cards}</div>` : `<div class="mkEmpty">${icon('bag')}<span>${t('emptyStash')}</span></div>`}
       <div class="mkBtns">${st.length ? `<button class="kbtn green" id="mkSellAll"><span class="coin"></span><span>${t('sellAll')}</span></button>` : ''}${exits()}</div>`;
     $('mkSheet').querySelectorAll('[data-i]').forEach((b) => { b.onclick = () => startDeal(+b.dataset.i); });
     const sa = $('mkSellAll'); if (sa) sa.onclick = sellAll;
@@ -160,12 +165,13 @@ export function createMarketView(d) {
   function renderBuy() {
     V.deal = null; putOnCounter(null); coins();
     const r = run();
-    const row = (id, price, right) => { const g = goodText(id, { p: goodParam(id) }); return `<div class="goodRow"><span class="gi">${icon(GOOD_ICON[id])}</span><div class="gt"><b>${g.name}</b><small>${g.desc}</small></div>${right}</div>`; };
+    // a card per good: icon, name, one short line of what it does, and the price as the buy button
+    const card = (id, right, cls = '', badge = '') => { const g = goodText(id, { p: goodParam(id) }); return `<div class="good ${cls}">${badge}<span class="lootIc">${icon(GOOD_ICON[id])}</span><div class="gTxt"><b>${g.name}</b><small>${g.desc}</small></div>${right}</div>`; };
     const buyBtn = (kind, id, price) => `<button class="kbtn ${save.coins >= price ? 'green' : 'grey'} lb" data-buy="${kind}:${id}" ${save.coins < price ? 'disabled' : ''}><span class="coin"></span><span class="num">${price}</span></button>`;
-    const gear = Object.entries(RULES.gear).map(([id, g]) => row(id, g.price, r.gear[id] ? `<span class="owned">${icon('check')}${t('owned')}</span>` : buyBtn('gear', id, g.price))).join('');
-    const sup = Object.entries(RULES.consumables).filter(([, c]) => c && c.price).map(([id, c]) => row(id, c.price, `${r.inv[id] ? `<span class="have num">${t('have', { n: r.inv[id] })}</span>` : ''}${buyBtn('sup', id, c.price)}`)).join('');
-    $('mkSheet').innerHTML = `${strip()}<div class="goodList"><div class="mkHead"><span>${icon('shoe')}${t('gearH')}</span></div>${gear}
-      <div class="mkHead"><span>${icon('dust')}${t('suppliesH')}</span></div>${sup}</div><div class="mkBtns">${exits()}</div>`;
+    const gear = Object.entries(RULES.gear).map(([id, g]) => r.gear[id] ? card(id, `<span class="owned" title="${t('owned')}">${icon('check')}</span>`, 'own') : card(id, buyBtn('gear', id, g.price))).join('');
+    const sup = Object.entries(RULES.consumables).filter(([, c]) => c && c.price).map(([id, c]) => card(id, buyBtn('sup', id, c.price), '', r.inv[id] ? `<span class="gHave num">${t('have', { n: r.inv[id] })}</span>` : '')).join('');
+    $('mkSheet').innerHTML = `${strip()}<div class="goodList shopList"><div class="mkHead">${icon('shoe')}<span>${t('gearH')}</span></div>${gear}
+      <div class="mkHead">${icon('dust')}<span>${t('suppliesH')}</span></div>${sup}</div><div class="mkBtns">${exits()}</div>`;
     $('mkSheet').querySelectorAll('[data-buy]').forEach((b) => { b.onclick = () => {
       const [kind, id] = b.dataset.buy.split(':');
       const ok = kind === 'gear' ? buyGear(r, id) : buyConsumable(r, id);
@@ -184,17 +190,21 @@ export function createMarketView(d) {
   }
   function renderDeal() {
     const D = V.deal, it = D.item, A = D.asks;
-    const dots = Array.from({ length: D.patienceMax }, (_, k) => `<u class="${k < D.patience ? 'f' : ''}"></u>`).join('');
-    const ask = (a, cls, key) => `<button class="kbtn ${cls}" data-a="${a}" ${A[a] <= D.offer ? 'disabled' : ''}>${t(key, { n: A[a] })}</button>`;
-    const dmg = (it.cond ?? 1) < 0.999 ? ` <span class="dmg">${icon('crack')}${Math.round(it.cond * 100)}%</span>` : '';
-    $('mkSheet').innerHTML = `<div class="dealCard">${icon('i_' + it.kind)}<div><div class="inm">${itemName(it.kind)}${dmg}</div><div class="iest">${t('estCeil')}: <span class="coin"></span><span class="num">${D.est.lo}–${D.est.hi}</span></div></div>
-        <div class="offer"><span class="coin"></span><span class="num">${D.offer}</span></div></div>
-      <div class="patience">${t('patience')} <span class="dots">${dots}</span></div>
-      <div class="choices three">
-        <button class="kbtn green" data-a="accept">${t('cAccept', { n: D.offer })}</button>
-        ${ask('askLo', 'blue', 'cAskLo')}${ask('askMid', 'yellow', 'cAskMid')}${ask('askHi', 'red', 'cAskHi')}
-        <button class="kbtn grey" data-a="flatter" ${D.flattered ? 'disabled' : ''}>${t('cFlatter')}</button>
-        <button class="kbtn grey" data-a="leave">${t('cLeave')}</button>
+    // Left: the item and what he pays at most. Right: his offer, big, with his patience as hearts.
+    // Below: accept (the main button), the three counter-offers as plain amounts going from safe (blue) to
+    // greedy (red), and flatter / walk away as small text buttons.
+    const hearts = Array.from({ length: D.patienceMax }, (_, k) => `<span class="${k < D.patience ? 'f' : ''}">${icon('heart')}</span>`).join('');
+    const ask = (a, cls, k) => `<button class="kbtn ${cls} ask" data-a="${a}" ${A[a] <= D.offer ? 'disabled' : ''} title="${t(k, { n: A[a] })}"><span class="coin"></span><span class="num">${A[a]}</span></button>`;
+    const dmg = (it.cond ?? 1) < 0.999 ? `<span class="dmg">${icon('crack')}<span>${Math.round(it.cond * 100)}%</span></span>` : '';
+    $('mkSheet').innerHTML = `<div class="deal">
+        <div class="dealItem"><span class="lootIc">${icon('i_' + it.kind)}</span><div><b>${itemName(it.kind)}</b>${dmg}<small title="${t('estCeil')}"><span class="coin"></span><span class="num">${D.est.lo}–${D.est.hi}</span></small></div></div>
+        <div class="dealOffer"><span class="offerAmt"><span class="coin"></span><span class="num">${D.offer}</span></span><span class="hearts" title="${t('patience')}">${hearts}</span></div>
+      </div>
+      <div class="dealActs">
+        <button class="kbtn green accept" data-a="accept">${icon('check')}<span>${t('cAccept', { n: D.offer })}</span></button>
+        <div class="askLbl">${icon('up')}<span>${t('askMore')}</span></div>
+        <div class="asks">${ask('askLo', 'blue', 'cAskLo')}${ask('askMid', 'yellow', 'cAskMid')}${ask('askHi', 'red', 'cAskHi')}</div>
+        <div class="minor"><button class="txtBtn" data-a="flatter" ${D.flattered ? 'disabled' : ''}>${icon('sparkle')}<span>${t('cFlatter')}</span></button><button class="txtBtn" data-a="leave">${icon('cross')}<span>${t('cLeave')}</span></button></div>
       </div>`;
     $('mkSheet').querySelectorAll('[data-a]').forEach((b) => { b.onclick = () => act(b.dataset.a); });
   }

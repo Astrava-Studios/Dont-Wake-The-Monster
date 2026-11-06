@@ -1,12 +1,8 @@
 // View layer: renders the pure sim (sim.js), turns its events into juice + sound, and hosts the UI.
 // Debug hooks: ?seed=N ?night=N ?sim=SECONDS ?autoplay&speed=4 ?gallery ?noassets ?lowfx ?r.path=value
 import { Capacitor } from '@capacitor/core';
-import { StatusBar } from '@capacitor/status-bar';
 import { App } from '@capacitor/app';
-
-if (Capacitor.isNativePlatform()) {
-  StatusBar.hide().catch(() => {});
-}
+// Full screen on Android is handled natively (MainActivity: sticky immersive, bars come back only for a moment).
 
 import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
@@ -1150,16 +1146,22 @@ let shopSel = 'socks';
 function renderShop() {
   const MAX = RULES.upgrades.max, up = save.upgrades;
   $('shopCoins').textContent = save.coins;
+  // Two branches, each a row of nodes joined by a line (left to right = unlock order). A node: its icon in a
+  // round button, its name and five level pips. Locked nodes are grey with a lock; one you can afford glows.
+  // The panel on the right explains the selected skill and holds the only buy button.
+  const pips = (lv, cls = '') => `<span class="pips ${cls}">${Array.from({ length: MAX }, (_, i) => `<i class="${i < lv ? 'f' : ''}"></i>`).join('')}</span>`;
   const node = (k, col) => { const it = SHOP.find((s) => s.k === k), lv = upg(k), locked = skillLocked(k, up);
-    return `<button class="node ${locked ? 'locked' : ''} ${k === shopSel ? 'sel' : ''}" data-k="${k}"><span class="kround ${locked ? 'grey' : col}">${icon(locked ? 'lock' : it.ic)}</span><span class="nlv num">${lv}/${MAX}</span></button>`; };
-  const tree = BRANCHES.map((b) => `<div class="branch"><div class="bHead">${icon(b.id === 'thief' ? 'paw' : 'stall')}<span>${t(b.id === 'thief' ? 'branchThief' : 'branchTrade')}</span></div>${b.skills.map((k) => node(k, b.id === 'thief' ? 'green' : 'blue')).join('<i class="link"></i>')}</div>`).join('');
+    const can = !locked && lv < MAX && save.coins >= shopCost(k, lv);
+    return `<button class="node ${locked ? 'locked' : ''} ${k === shopSel ? 'sel' : ''} ${can ? 'can' : ''} ${lv >= MAX ? 'max' : ''}" data-k="${k}" title="${it.nm}"><span class="kround ${locked ? 'grey' : col}">${icon(it.ic)}${locked ? `<span class="nLock">${icon('lock')}</span>` : ''}</span><span class="nNm">${it.nm}</span>${pips(lv)}</button>`; };
+  const tree = BRANCHES.map((b) => `<div class="branch ${b.id}"><div class="bHead">${icon(b.id === 'thief' ? 'paw' : 'stall')}<span>${t(b.id === 'thief' ? 'branchThief' : 'branchTrade')}</span></div><div class="bRow">${b.skills.map((k) => node(k, b.id === 'thief' ? 'green' : 'blue')).join('<i class="link"></i>')}</div></div>`).join('');
   const it = SHOP.find((s) => s.k === shopSel), lv = upg(shopSel), locked = skillLocked(shopSel, up), max = lv >= MAX, c = shopCost(shopSel, lv);
   const req = RULES.upgrades.req[shopSel];
-  const action = locked ? `<div class="lockTxt">${icon('lock')}${t('locked', { skill: SHOP.find((s) => s.k === req[0]).nm, n: req[1] })}</div>`
-    : max ? `<button class="kbtn grey" disabled>${t('maxed')}</button>`
-    : `<button class="kbtn yellow" id="buySkill" ${save.coins < c ? 'disabled' : ''}><span class="coin"></span><span class="num">${c}</span></button>`;
+  const action = locked ? `<div class="lockTxt">${icon('lock')}<span>${t('locked', { skill: SHOP.find((s) => s.k === req[0]).nm, n: req[1] })}</span></div>`
+    : max ? `<div class="maxTxt">${icon('check')}<span>${t('maxed')}</span></div>`
+    : `<button class="kbtn yellow" id="buySkill" ${save.coins < c ? 'disabled' : ''}>${icon('up')}<span class="coin"></span><span class="num">${c}</span></button>`;
+  const branchCol = BRANCHES.find((b) => b.skills.includes(shopSel)).id === 'thief' ? 'green' : 'blue';
   $('shopList').innerHTML = `<div class="tree">${tree}</div>
-    <div class="skillInfo"><div class="sTop">${icon(it.ic)}<div><div class="nm">${it.nm}</div><div class="lv">${Array.from({ length: MAX }, (_, i) => `<i class="${i < lv ? 'f' : ''}"></i>`).join('')}</div></div></div><div class="ds">${it.ds()}</div>${action}</div>`;
+    <div class="skillInfo"><div class="sTop"><span class="kround ${locked ? 'grey' : branchCol}">${icon(it.ic)}</span><div><div class="nm">${it.nm}</div><div class="lvRow">${pips(lv, 'big')}<span class="num">${lv}/${MAX}</span></div></div></div><div class="ds">${it.ds()}</div>${action}</div>`;
   $('shopList').querySelectorAll('[data-k]').forEach((b) => { b.onclick = () => { shopSel = b.dataset.k; renderShop(); }; });
   const bb = $('buySkill'); if (bb) bb.onclick = () => {
     if (save.coins < c || skillLocked(shopSel, up) || upg(shopSel) >= MAX) return;
@@ -1226,6 +1228,7 @@ function applyQuality() {
   applySettings();
   resize();
   syncShadows();
+  sfx.lowPower = q === 'low'; // picked up when the audio context is created (first tap)
   sfx.setReverb(q !== 'low');
   if (motes) motes.visible = q !== 'low';
 }

@@ -270,187 +270,6 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
     margin-top: 2px;
   }
 
-  /* Black Market: Reposition speech bubble away from merchant's face & NO SCROLL */
-  #market {
-    justify-content: flex-start;
-    padding: calc(env(safe-area-inset-top) + 6px) calc(env(safe-area-inset-right) + 12px) calc(env(safe-area-inset-bottom) + 6px) calc(env(safe-area-inset-left) + 12px);
-    overflow: hidden !important;
-    touch-action: none !important;
-    overscroll-behavior: none !important;
-  }
-  #market .mkTop { height: 32px; }
-  #market .mkTop .mkTitle { font-size: 17px; }
-  #market .mkTop .mkTitle .i { width: 20px; height: 20px; }
-  #market .mkTop .kpanel { height: 28px; font-size: 13.5px; padding: 0 8px; }
-  #market .bubble {
-    position: absolute;
-    left: calc(env(safe-area-inset-left) + 16px);
-    top: calc(env(safe-area-inset-top) + 42px);
-    width: min(280px, 33vw);
-    min-height: 36px;
-    max-height: 80px;
-    overflow: hidden !important;
-    padding: 5px 12px;
-    border-radius: 14px;
-    z-index: 15;
-    box-shadow: 0 3px 0 rgba(0,0,0,.25);
-  }
-  #market .bubble b { font-size: 10.5px; }
-  #market .bubble p { font-size: 12px; line-height: 1.2; margin: 1px 0 0; }
-  #market .bubble::after {
-    left: auto;
-    right: -10px;
-    top: 14px;
-    bottom: auto;
-    margin: 0;
-    border-width: 7px 0 7px 10px;
-    border-color: transparent transparent transparent #fff8e8;
-  }
-  #market .mkSpacer { display: none; }
-  #market .mkSheet {
-    position: absolute;
-    bottom: calc(env(safe-area-inset-bottom) + 6px);
-    left: 50%;
-    transform: translateX(-50%);
-    width: min(720px, 96vw);
-    max-height: calc(var(--vh, 1vh) * 60);
-    padding: 5px 12px 6px;
-    gap: 3px;
-    overflow: hidden !important;
-    touch-action: none !important;
-    overscroll-behavior: none !important;
-    border-width: 8px 8px 11px 8px;
-    z-index: 14;
-    scrollbar-width: none;
-  }
-  #market .mkSheet::-webkit-scrollbar {
-    display: none;
-    width: 0;
-    height: 0;
-  }
-  #market .mkStrip {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    width: 100%;
-    gap: 8px;
-    flex-wrap: nowrap;
-  }
-  #market .mkStrip .mkTabs {
-    display: flex;
-    gap: 4px;
-    min-width: 160px;
-    width: auto;
-  }
-  #market .mkStrip .mkTabs .tab {
-    height: 26px;
-    font-size: 12.5px;
-    padding: 0 8px;
-  }
-  #market .mkStrip .chips {
-    display: flex;
-    gap: 4px;
-    width: auto;
-    flex-wrap: nowrap;
-  }
-  #market .mkStrip .chip {
-    padding: 2px 6px;
-    font-size: 10.5px;
-    gap: 3px;
-  }
-  #market .mkStrip .chip .i { width: 13px; height: 13px; }
-  #market .mkStrip .chip .coin { width: 12px; height: 12px; }
-
-  #market .mkHead {
-    width: 100%;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 11px;
-    line-height: 1.1;
-    margin: 1px 0 0;
-    padding: 0;
-  }
-  #market .mkHead .small { font-size: 10px; }
-
-  #market .itemGrid {
-    width: 100%;
-    display: grid;
-    grid-template-columns: repeat(6, 1fr);
-    gap: 4px;
-  }
-  #market .itemCard {
-    padding: 3px 2px;
-    gap: 1px;
-    border-radius: 9px;
-  }
-  #market .itemCard .i { width: 20px; height: 20px; }
-  #market .itemCard .inm { font-size: 10px; line-height: 1.1; }
-  #market .iest { font-size: 10.5px; }
-  #market .iest .coin { width: 12px; height: 12px; }
-
-  #market .goodList {
-    width: 100%;
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 3px 5px;
-  }
-  #market .goodList .mkHead {
-    grid-column: 1 / -1;
-    font-size: 11px;
-    margin: 1px 0 0;
-    padding: 0;
-  }
-  #market .goodRow {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 2px 4px;
-    border-radius: 8px;
-    height: 28px;
-    min-width: 0;
-  }
-  #market .goodRow .gi .i { width: 16px; height: 16px; flex: none; }
-  #market .goodRow .gt { line-height: 1; min-width: 0; }
-  #market .goodRow .gt b { font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
-  #market .goodRow .gt small { display: none; }
-  #market .goodRow .kbtn.lb { height: 24px; padding: 0 4px; font-size: 11px; min-width: 44px; border-width: 4px 4px 6px 4px; flex: none; }
-  #market .goodRow .kbtn.lb .coin { width: 12px; height: 12px; }
-  #market .goodRow .owned { font-size: 10.5px; flex: none; }
-  #market .goodRow .have { font-size: 10.5px; flex: none; }
-
-  #market .dealCard { gap: 6px; }
-  #market .dealCard > .i { width: 26px; height: 26px; }
-  #market .dealCard .inm { font-size: 13px; }
-  #market .dealCard .iest { font-size: 11px; }
-  #market .dealCard .offer { font-size: 17px; }
-  #market .dealCard .offer .coin { width: 18px; height: 18px; }
-  #market .patience { font-size: 11px; gap: 5px; }
-  #market .choices .kbtn { height: 30px; font-size: 11.5px; padding: 0 6px; border-width: 5px 5px 8px 5px; }
-  #market .choices.three .kbtn { height: 30px; font-size: 11px; }
-  #market .choices.three .kbtn:first-child { height: 32px; }
-  #market .choices.three .kbtn:nth-last-child(-n+2) { height: 28px; }
-
-  #market .mkBtns {
-    display: flex;
-    gap: 6px;
-    width: 100%;
-    justify-content: center;
-    align-items: center;
-    margin-top: 2px;
-  }
-  #market .mkBtns .kbtn {
-    height: 32px;
-    font-size: 13px;
-    min-width: 110px;
-    padding: 0 10px;
-    border-width: 5px 5px 8px 5px;
-  }
-  #market .mkBtns .kround {
-    width: 34px;
-    height: 34px;
-  }
-
   /* Wardrobe & Hideout - Docked as sleek right-side panels, freeing 55% of screen for 3D room/thief */
   #wardrobe, #hideoutUI {
     overflow: hidden !important;
@@ -650,79 +469,6 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   #how .howGrid div { padding: 5px 3px; font-size: 11.5px; }
   #how .howGrid b .i { width: 24px; height: 24px; }
   #how .kbtn { min-width: 150px; height: 38px; font-size: 16px; border-width: 7px 7px 10px 7px; }
-
-  /* Skills (Yetenekler Tree & Info side-by-side, ZERO SCROLL) */
-  #shop .kcard.wide {
-    width: min(740px, 96vw);
-    max-height: calc(var(--vh, 1vh) * 94);
-    padding: 6px 12px;
-    gap: 4px;
-    border-width: 8px 8px 11px 8px;
-    overflow: hidden !important;
-    touch-action: none !important;
-  }
-  #shop .cardHead h2 { font-size: 18px; }
-  #shop #shopList {
-    display: grid;
-    grid-template-columns: 1.15fr 0.85fr;
-    gap: 8px;
-    width: 100%;
-    align-items: center;
-  }
-  #shop .tree {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 6px;
-    width: 100%;
-  }
-  #shop .branch {
-    display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;
-    justify-content: center;
-    align-items: center;
-    gap: 4px;
-    padding: 4px 6px;
-    border-radius: 12px;
-  }
-  #shop .bHead {
-    width: 100%;
-    justify-content: center;
-    font-size: 11px;
-    margin-bottom: 2px;
-  }
-  #shop .bHead .i { width: 15px; height: 15px; }
-  #shop .node .kround {
-    width: 36px;
-    height: 36px;
-    font-size: 15px;
-  }
-  #shop .node .nlv { font-size: 10px; }
-  #shop .link { display: none; }
-  #shop .skillInfo {
-    padding: 6px 8px;
-    gap: 4px;
-    border-radius: 12px;
-    width: 100%;
-  }
-  #shop .sTop { gap: 6px; }
-  #shop .sTop > .i { width: 26px; height: 26px; }
-  #shop .sTop .nm { font-size: 13.5px; }
-  #shop .skillInfo .ds { font-size: 11px; line-height: 1.22; }
-  #shop #buySkill {
-    min-width: 110px;
-    height: 34px;
-    font-size: 13.5px;
-    border-width: 6px 6px 9px 6px;
-  }
-  #shop .kbtn.grey { height: 32px; font-size: 12.5px; }
-  #shop .kbtn[data-close="shop"] {
-    min-width: 140px;
-    height: 34px;
-    font-size: 14px;
-    border-width: 6px 6px 9px 6px;
-    margin-top: 2px;
-  }
 
   /* Result */
   #result .kcard {
@@ -1224,3 +970,223 @@ input[type=range]::-moz-range-thumb { width: 30px; height: 30px; border: none; b
 @media (orientation: landscape) { #wdSheet, #hoSheet { max-height: none; } }
 /* The handbook has no 3D scene to frame: in landscape its 120px spacer only squeezed the list to nothing. */
 @media (orientation: landscape) { #bestiaryUI .mkSpacer { display: none; } #bestiaryUI { gap: 6px; } }
+
+/* =====================================================================================================
+   UI v2 — one look for every panel: cream "paper" cards with an ink outline and a chunky drop shadow (they
+   read on the dark rooms), segmented tabs, small pills instead of sentences, white item cards with a round
+   tinted icon, and Kenney gloss buttons for actions. Phones in landscape get the same layout, only tighter.
+   ===================================================================================================== */
+:root { --paper: #fffaf0; --paper2: #f4e7cb; --line: #2a2140; --accent: #6f4fe0; --accent2: #4a2fb0;
+  --good: #2f9e48; --bad: #d24d38; --goldInk: #9a6a00; --well: rgba(42,33,64,.07); --cardSh: 0 3px 0 rgba(42,33,64,.16), inset 0 0 0 2px rgba(42,33,64,.07); }
+.kcard { background: linear-gradient(180deg, var(--paper) 0%, var(--paper2) 100%) !important; border: 3px solid var(--line) !important;
+  border-image: none !important; border-radius: 22px; box-shadow: 0 7px 0 rgba(0,0,0,.4), inset 0 2px 0 rgba(255,255,255,.9), inset 0 -4px 0 rgba(140,100,40,.13); }
+.kcard h2 { color: var(--line); letter-spacing: .01em; }
+.bubble { border: 3px solid var(--line); box-shadow: 0 5px 0 rgba(0,0,0,.35); }
+.bubble::after { bottom: -11px; border-top-color: var(--line); }
+.bubble b { color: var(--accent2); font-weight: 900; letter-spacing: .02em; }
+
+/* tabs: a sunken track with the active tab as a raised purple pill (wardrobe, hideout, handbook, market) */
+.mkTabs { padding: 3px; gap: 3px; border-radius: 14px; background: rgba(42,33,64,.1); box-shadow: inset 0 2px 0 rgba(0,0,0,.07); }
+.mkTabs .tab { background: transparent; border-radius: 11px; color: var(--ink2); transition: background .12s, color .12s; }
+.mkTabs .tab:hover:not(.on) { background: rgba(255,255,255,.6); color: var(--ink); }
+.mkTabs .tab.on { background: var(--accent); color: #fff; box-shadow: 0 3px 0 var(--accent2); }
+
+/* white cards inside a panel */
+.wCard, .goodRow { background: #fff; box-shadow: var(--cardSh); }
+.wCard.on { background: #f3edff; }
+.goodRow, .goodList .goodRow { min-width: 0; }
+.goodRow .gt { min-width: 0; }
+
+/* ---------- market: header ---------- */
+.mkStrip { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: nowrap; width: 100%; }
+.mkTabs.seg { width: auto; display: inline-flex; flex: none; }
+.mkTabs.seg .tab { height: 36px; padding: 0 16px; display: inline-flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 800; }
+.mkTabs.seg .tab .i { width: 18px; height: 18px; }
+.pills { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; min-width: 0; }
+.pill { display: inline-flex; align-items: center; gap: 4px; height: 30px; padding: 0 10px 0 6px; border-radius: 999px; border: 0;
+  font: inherit; font-weight: 800; font-size: 13px; white-space: nowrap; background: var(--well); color: var(--ink); }
+.pill > .i { width: 19px; height: 19px; } .pill .arr { width: 10px; height: 10px; margin-left: 2px; }
+.pill b { font-size: 12px; } .pill .coin { width: 15px; height: 15px; }
+.pill.up { background: #dcf5d3; color: #1f6b2c; } .pill.down { background: #ffe1d8; color: #a3361f; }
+.pill.rent { background: #ece4ff; color: var(--accent2); }
+.pill .pSub { display: inline-flex; align-items: center; gap: 2px; margin-left: 3px; padding-left: 6px; border-left: 1.5px solid rgba(74,47,176,.25); font-size: 12px; }
+.pill .pSub .i { width: 12px; height: 12px; }
+.pill.rent.due { background: #ff5a6a; color: #fff; box-shadow: 0 3px 0 #a3202f; animation: duePulse 1s ease-in-out infinite; cursor: pointer; }
+.pill.rent.due:disabled { animation: none; opacity: .7; }
+
+/* ---------- market: stolen items ---------- */
+.lootGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; width: 100%; }
+.loot { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 11px 6px 9px; border-radius: 16px;
+  background: #fff; color: var(--ink); box-shadow: var(--cardSh); transition: transform .1s, box-shadow .1s; }
+.loot:hover { transform: translateY(-2px); box-shadow: 0 5px 0 rgba(42,33,64,.16), inset 0 0 0 2px rgba(111,79,224,.35); }
+.loot:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(42,33,64,.16), inset 0 0 0 2px rgba(42,33,64,.07); }
+.lootIc { width: 48px; height: 48px; flex: none; border-radius: 50%; display: grid; place-items: center; color: var(--accent);
+  background: radial-gradient(circle at 35% 30%, #f6f2ff, #d9ceff); box-shadow: inset 0 -3px 0 rgba(74,47,176,.15); }
+.lootIc .i { width: 28px; height: 28px; }
+.lootNm { font-weight: 800; font-size: 13.5px; line-height: 1.1; text-align: center; }
+.lootPr { display: inline-flex; align-items: center; gap: 3px; font-size: 13px; color: var(--goldInk); }
+.lootPr .coin { width: 15px; height: 15px; }
+.loot.want { box-shadow: 0 3px 0 rgba(42,33,64,.16), inset 0 0 0 2.5px #3dbb4a; }
+.loot.want .lootIc { color: #1f7a31; background: radial-gradient(circle at 35% 30%, #f0ffe9, #bdeab0); }
+.loot.dislike { box-shadow: 0 3px 0 rgba(42,33,64,.16), inset 0 0 0 2.5px #e8714d; }
+.loot.dislike .lootIc { color: #b2452a; background: radial-gradient(circle at 35% 30%, #fff3ee, #ffd2c2); }
+.lootTag { position: absolute; top: 7px; left: 7px; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; color: #fff; }
+.lootTag.up { background: #3dbb4a; } .lootTag.down { background: #e8714d; } .lootTag .i { width: 10px; height: 10px; }
+.loot .dmg { position: absolute; top: 7px; right: 8px; }
+.dmg span { font-size: 11px; }
+.loot.off { opacity: .45; filter: grayscale(1); }
+.mkEmpty { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px; color: var(--ink2); font-weight: 700; margin: 0; }
+.mkEmpty .i { width: 30px; height: 30px; opacity: .5; }
+
+/* ---------- market: goods to buy ---------- */
+.goodList.shopList { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 7px; width: 100%; }
+.shopList .mkHead { grid-column: 1 / -1; display: flex; align-items: center; justify-content: flex-start; gap: 6px; margin: 3px 0 -1px;
+  font-size: 11.5px; font-weight: 900; text-transform: uppercase; letter-spacing: .05em; color: var(--ink2); }
+.shopList .mkHead .i { width: 15px; height: 15px; color: var(--accent); }
+.good { position: relative; display: flex; align-items: center; gap: 9px; padding: 7px 8px 7px 7px; border-radius: 16px; min-width: 0;
+  background: #fff; box-shadow: var(--cardSh); text-align: left; }
+.good .lootIc { width: 40px; height: 40px; } .good .lootIc .i { width: 23px; height: 23px; }
+.gTxt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; line-height: 1.15; }
+.gTxt b { font-size: 14px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gTxt small { font-size: 11.5px; font-weight: 600; color: var(--ink2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.good .kbtn.lb { flex: none; min-width: 0; height: 40px; padding: 0 9px; gap: 4px; font-size: 14px; border-width: 8px 8px 11px 8px; }
+.good .kbtn.lb .coin { width: 16px; height: 16px; }
+.good.own { background: #f2fbea; }
+.good .owned { flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: #3dbb4a; color: #fff; box-shadow: 0 2px 0 #23702a; }
+.good .owned .i { width: 17px; height: 17px; }
+.gHave { position: absolute; top: -6px; left: -3px; z-index: 1; padding: 2px 6px; border-radius: 999px; font-size: 10.5px; color: #fff; background: var(--accent); box-shadow: 0 2px 0 var(--accent2); }
+
+/* ---------- market: haggling ---------- */
+.deal { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px 8px 8px; border-radius: 16px; background: #fff; box-shadow: var(--cardSh); }
+.dealItem { display: flex; align-items: center; gap: 10px; min-width: 0; text-align: left; }
+.dealItem .lootIc { width: 54px; height: 54px; } .dealItem .lootIc .i { width: 32px; height: 32px; }
+.dealItem b { font-size: 17px; font-weight: 900; margin-right: 6px; }
+.dealItem small { display: flex; align-items: center; gap: 3px; margin-top: 2px; font-size: 13px; font-weight: 700; color: var(--goldInk); }
+.dealItem small .coin { width: 15px; height: 15px; }
+.dealOffer { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex: none; }
+.offerAmt { display: inline-flex; align-items: center; gap: 6px; font-size: 32px; color: #b07800; line-height: 1; }
+.offerAmt .coin { width: 30px; height: 30px; }
+.hearts { display: flex; gap: 2px; } .hearts span { color: rgba(42,33,64,.16); display: inline-flex; } .hearts span.f { color: #ff5a6a; }
+.hearts .i { width: 16px; height: 16px; }
+.dealActs { width: 100%; display: flex; flex-direction: column; gap: 7px; }
+.dealActs .accept { width: 100%; min-width: 0; height: 52px; font-size: 18px; }
+.dealActs .accept .i { width: 20px; height: 20px; }
+.asks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+.asks .kbtn { min-width: 0; height: 46px; padding: 0 6px; gap: 5px; font-size: 18px; }
+.asks .kbtn .coin { width: 18px; height: 18px; }
+.asks .kbtn:disabled { filter: grayscale(1) opacity(.4); }
+.minor { display: flex; justify-content: center; gap: 14px; }
+.txtBtn { display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 10px; font-weight: 800; font-size: 13px; color: var(--ink2); }
+.txtBtn:hover:not(:disabled) { background: var(--well); color: var(--ink); }
+.txtBtn .i { width: 14px; height: 14px; } .txtBtn:disabled { opacity: .35; cursor: default; }
+
+/* ---------- market: layout ---------- */
+#market .mkSheet { width: min(800px, 100%); max-height: calc(var(--vh, 1vh) * 58); padding: 12px 14px; gap: 9px; }
+/* his speech sits beside his head, the tail pointing at him */
+#market .bubble { position: absolute; top: calc(var(--vh, 1vh) * 15); right: calc(50% + 120px); left: auto; width: auto; max-width: min(380px, 40vw); min-width: min(280px, 36vw); min-height: 0; z-index: 12; overflow: visible; }
+#market .bubble::after { left: auto; right: -15px; top: 50%; bottom: auto; margin: -8px 0 0; border-width: 8px 0 8px 14px; border-color: transparent transparent transparent var(--line); }
+#market .mkBtns .kbtn { min-width: 140px; }
+
+/* ---------- skill tree ---------- */
+#shop .kcard.wide { width: min(880px, 100%); }
+#shopList { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(230px, 1fr); gap: 12px; align-items: stretch; }
+.tree { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+.branch { display: block; padding: 8px 10px 10px; border-radius: 16px; background: #fff; box-shadow: var(--cardSh); }
+.bHead { justify-content: flex-start; margin-bottom: 4px; font-size: 11.5px; font-weight: 900; text-transform: uppercase; letter-spacing: .06em; color: var(--ink2); }
+.bHead .i { width: 15px; height: 15px; }
+.bRow { display: flex; align-items: flex-start; }
+.node { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 5px 2px 6px; border-radius: 14px; transition: background .12s; }
+.node:hover { background: var(--well); }
+.node .kround { width: 52px; height: 52px; } .node .kround .i { width: 26px; height: 26px; }
+.nLock { position: absolute; right: -3px; bottom: 0; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: var(--line); color: #fff; }
+.nLock .i { width: 11px !important; height: 11px !important; }
+.nNm { max-width: 100%; font-size: 11.5px; font-weight: 800; line-height: 1.1; text-align: center; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pips { display: flex; gap: 2px; } .pips i { width: 7px; height: 7px; border-radius: 50%; background: rgba(42,33,64,.16); }
+.pips i.f { background: #ffb300; box-shadow: inset 0 0 0 1px #b07800; } .pips.big i { width: 11px; height: 11px; }
+.link { flex: 0 0 12px; width: auto; height: 4px; margin-top: 30px; border-radius: 2px; background: rgba(42,33,64,.18); }
+.node.sel { background: #fff3c4; box-shadow: inset 0 0 0 2px #ffcf3f; }
+.node.sel .kround { filter: none; transform: none; }
+.node.locked .kround { opacity: .5; } .node.locked .nNm { color: var(--ink2); }
+.node.max .pips i.f { background: #3dbb4a; box-shadow: inset 0 0 0 1px #23702a; }
+.node.can .kround::after { content: ''; position: absolute; inset: -3px -3px 1px; border-radius: 50%; box-shadow: 0 0 0 2px rgba(255,207,63,.95), 0 0 12px rgba(255,190,40,.8); animation: canGlow 1.6s ease-in-out infinite; pointer-events: none; }
+@keyframes canGlow { 50% { opacity: .35; } }
+.skillInfo { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 14px 12px; border-radius: 16px; background: #fff; box-shadow: var(--cardSh); }
+.sTop { display: flex; align-items: center; gap: 12px; width: 100%; justify-content: center; }
+.sTop .kround { width: 58px; height: 58px; flex: none; } .sTop .kround .i { width: 30px; height: 30px; }
+.sTop .nm { font-size: 19px; font-weight: 900; color: var(--line); margin-bottom: 4px; }
+.skillInfo .ds { width: 100%; padding: 8px 10px; border-radius: 12px; background: var(--well); font-size: 14px; font-weight: 700; color: var(--ink); }
+.skillInfo .kbtn { min-width: 170px; }
+.skillInfo .kbtn .i { width: 16px; height: 16px; }
+.maxTxt { display: flex; align-items: center; gap: 6px; font-weight: 900; color: #1f7a31; } .maxTxt .i { width: 18px; height: 18px; }
+.lockTxt { text-align: center; } .lockTxt .i { flex: none; }
+
+/* ---------- handbook: never wider than its card ---------- */
+.bestiaryList { overflow-x: hidden; }
+.goodList.bestiaryList { grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); }
+.monsterRow { display: grid; grid-template-columns: 44px minmax(0, 1fr); align-items: start; column-gap: 9px; row-gap: 4px; padding: 8px 10px; }
+.monsterRow .bmStats { grid-column: 2; flex-direction: row; flex-wrap: wrap; align-items: center; margin-left: 0; }
+.bmGauges { flex-wrap: wrap; gap: 3px 9px; }
+.monsterTrait { overflow-wrap: anywhere; }
+#bmSheet { width: min(860px, 100%); }
+.goodRow .gt small.homeBadge, .homeBadge { align-self: flex-start; display: inline-flex; -webkit-line-clamp: unset; -webkit-box-orient: unset; overflow: visible; }
+.monsterRow .gt > b { line-height: 1.1; }
+
+/* ---------- phones in landscape: same layout, tighter ---------- */
+@media (orientation: landscape) and (max-height: 500px) {
+  .kcard { border-radius: 16px; }
+  #market .bubble { top: calc(env(safe-area-inset-top) + 44px); right: calc(50% + 62px); max-width: min(320px, 40vw); min-width: min(230px, 34vw); padding: 6px 11px; border-width: 2.5px; }
+  #market .bubble b { font-size: 10.5px; } #market .bubble p { font-size: 13px; line-height: 1.25; }
+  #market .mkSpacer { display: none; }
+  #market { justify-content: flex-start; padding: calc(env(safe-area-inset-top) + 6px) calc(env(safe-area-inset-right) + 12px) calc(env(safe-area-inset-bottom) + 6px) calc(env(safe-area-inset-left) + 12px); }
+  #market .mkTop { height: 32px; } #market .mkTitle { font-size: 17px; } #market .mkTitle .i { width: 20px; height: 20px; }
+  #market .mkTop .kpanel { height: 28px; font-size: 13.5px; padding: 0 8px; }
+  #market .mkSheet { position: absolute; left: 0; right: 0; margin: 0 auto; bottom: calc(env(safe-area-inset-bottom) + 6px); z-index: 14;
+    width: min(780px, 96vw); max-height: calc(var(--vh, 1vh) * 61); padding: 8px 10px 9px; gap: 6px; border-width: 2.5px !important; }
+  .mkTabs.seg .tab { height: 30px; padding: 0 11px; font-size: 13px; gap: 4px; } .mkTabs.seg .tab .i { width: 15px; height: 15px; }
+  .pill { height: 25px; padding: 0 8px 0 5px; font-size: 11.5px; gap: 3px; } .pill > .i { width: 16px; height: 16px; } .pill b { font-size: 10.5px; }
+  .lootGrid { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; }
+  .loot { padding: 7px 4px 6px; gap: 2px; border-radius: 13px; } .lootIc { width: 36px; height: 36px; } .lootIc .i { width: 21px; height: 21px; }
+  .lootNm { font-size: 11.5px; } .lootPr { font-size: 11px; } .lootPr .coin { width: 13px; height: 13px; }
+  .lootTag { top: 5px; left: 5px; width: 16px; height: 16px; } .loot .dmg { top: 4px; right: 5px; }
+  .goodList.shopList { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 5px; }
+  .shopList .mkHead { font-size: 10px; margin: 1px 0 -2px; }
+  .good { padding: 5px 6px 5px 5px; gap: 7px; border-radius: 13px; } .good .lootIc { width: 32px; height: 32px; } .good .lootIc .i { width: 18px; height: 18px; }
+  .gTxt b { font-size: 12.5px; } .gTxt small { font-size: 10.5px; -webkit-line-clamp: 1; }
+  .good .kbtn.lb { height: 32px; padding: 0 6px; font-size: 12px; border-width: 6px 6px 9px 6px; } .good .kbtn.lb .coin { width: 13px; height: 13px; }
+  .good .owned { width: 26px; height: 26px; }
+  #market .mkBtns .kbtn { height: 36px; min-width: 120px; font-size: 14px; padding: 0 12px; border-width: 7px 7px 10px 7px; }
+  #market .mkBtns .kround { width: 38px; height: 38px; }
+  .deal { padding: 5px 10px 5px 5px; gap: 8px; } .dealItem .lootIc { width: 40px; height: 40px; } .dealItem .lootIc .i { width: 24px; height: 24px; }
+  .dealItem b { font-size: 14px; } .dealItem small { font-size: 11.5px; } .offerAmt { font-size: 23px; } .offerAmt .coin { width: 22px; height: 22px; }
+  .hearts .i { width: 13px; height: 13px; }
+  .dealActs { gap: 5px; } .dealActs .accept { height: 38px; font-size: 14.5px; border-width: 7px 7px 10px 7px; }
+  .asks { gap: 5px; } .asks .kbtn { height: 34px; font-size: 14px; border-width: 7px 7px 10px 7px; } .asks .kbtn .coin { width: 14px; height: 14px; }
+  .txtBtn { font-size: 11.5px; padding: 2px 8px; }
+  /* skills */
+  #shop .kcard.wide { width: min(800px, 96vw); max-height: calc(var(--vh, 1vh) * 94); padding: 8px 12px 10px; gap: 7px; border-width: 2.5px !important; }
+  #shop .cardHead h2 { font-size: 18px; }
+  #shopList { gap: 8px; grid-template-columns: minmax(0, 1.55fr) minmax(190px, 1fr); }
+  .tree { gap: 6px; } .branch { padding: 5px 6px 6px; border-radius: 13px; } .bHead { font-size: 10px; margin-bottom: 2px; }
+  .node { padding: 3px 1px 4px; gap: 2px; border-radius: 11px; } .node .kround { width: 40px; height: 40px; } .node .kround .i { width: 20px; height: 20px; }
+  .nNm { font-size: 10px; } .pips i { width: 5px; height: 5px; } .link { margin-top: 22px; flex-basis: 8px; height: 3px; }
+  .nLock { width: 16px; height: 16px; }
+  .skillInfo { padding: 8px; gap: 6px; border-radius: 13px; } .sTop { gap: 8px; } .sTop .kround { width: 42px; height: 42px; } .sTop .kround .i { width: 22px; height: 22px; }
+  .sTop .nm { font-size: 15px; margin-bottom: 2px; } .pips.big i { width: 8px; height: 8px; }
+  .skillInfo .ds { font-size: 12px; padding: 5px 8px; } .skillInfo .kbtn { height: 38px; min-width: 130px; font-size: 15px; border-width: 7px 7px 10px 7px; }
+  .lockTxt, .maxTxt { font-size: 12px; }
+  #shop .kcard > .kbtn { height: 36px; min-width: 140px; font-size: 15px; border-width: 7px 7px 10px 7px; }
+  .goodList.bestiaryList { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
+  .monsterRow { padding: 5px 7px; column-gap: 7px; row-gap: 2px; grid-template-columns: 36px minmax(0, 1fr); }
+  .monsterRow .bmFaceWrap { width: 36px; height: 36px; }
+  #bmSheet { width: min(780px, 96vw); padding: 8px 10px 9px; gap: 6px; border-width: 2.5px !important; }
+  #bestiaryUI .mkTabs .tab { height: 30px; font-size: 13px; }
+  #bestiaryUI .mkBtns .kbtn, #wardrobe .mkBtns .kbtn, #hideoutUI .mkBtns .kbtn { height: 36px; min-width: 120px; font-size: 14px; padding: 0 12px; border-width: 7px 7px 10px 7px; }
+  #wdSheet, #hoSheet { border-width: 2.5px !important; }
+}
+/* narrow windows: the skill panel goes under the tree */
+@media (max-width: 620px) { #shopList { grid-template-columns: 1fr; } .pill .pLbl { display: none; } }
+.askLbl { display: flex; align-items: center; gap: 5px; margin-bottom: -3px; font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: .05em; color: var(--ink2); }
+.askLbl .i { width: 9px; height: 9px; color: #3dbb4a; }
+.lvRow { display: flex; align-items: center; gap: 6px; } .lvRow .num { font-size: 12px; color: var(--ink2); }
+.good .kbtn.lb { padding: 0 7px; }
+@media (orientation: landscape) and (max-height: 500px) { .askLbl { font-size: 9.5px; margin-bottom: -2px; } .good .kbtn.lb { padding: 0 4px; gap: 2px; } .lvRow .num { font-size: 10px; } }
