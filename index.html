@@ -129,19 +129,21 @@
 
     <!-- NIGHT CARD: night number, monster, modifiers (if any), start -->
     <div id="nightCard" class="screen hidden">
+      <!-- the night's briefing: a dark "event" card. Left: tonight's monster as a playing card. Right: the house,
+           tonight's twists, your relics and the supplies to take. A relic offer comes first, as its own step. -->
       <div class="kcard nc">
-        <div class="ncTopRow">
-          <div class="nightNum"><i data-icon="moon"></i><span class="num" id="ncNight">1</span></div>
-          <div class="ncMonster"><div id="ncFace"></div><div class="mName" id="ncMonster"></div></div>
-          <div id="ncRent"></div>
+        <div class="ncBanner"><i data-icon="moon"></i><span data-i18n="nightT"></span><span class="num" id="ncNight">1</span></div>
+        <div class="ncBody">
+          <div class="mCard" id="ncMCard"></div>
+          <div class="ncSide">
+            <div id="ncHouse"></div>
+            <div id="ncMods"></div>
+            <div id="ncRelics"></div>
+            <div id="ncKit"></div>
+          </div>
         </div>
-        <div class="ncMidRow">
-          <div id="ncHouse"></div>
-          <div id="ncMods"></div>
-          <div id="ncRelics"></div>
-          <div id="ncKit"></div>
-        </div>
-        <button class="kbtn green big" id="sneakBtn"><i data-icon="play"></i><span data-i18n="start"></span></button>
+        <div class="ncFoot"><div id="ncRent"></div><button class="kbtn green big" id="sneakBtn"><i data-icon="play"></i><span data-i18n="start"></span></button></div>
+        <div class="relicPick" id="ncPick"></div>
       </div>
     </div>
 

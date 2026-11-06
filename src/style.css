@@ -1190,3 +1190,152 @@ input[type=range]::-moz-range-thumb { width: 30px; height: 30px; border: none; b
 .lvRow { display: flex; align-items: center; gap: 6px; } .lvRow .num { font-size: 12px; color: var(--ink2); }
 .good .kbtn.lb { padding: 0 7px; }
 @media (orientation: landscape) and (max-height: 500px) { .askLbl { font-size: 9.5px; margin-bottom: -2px; } .good .kbtn.lb { padding: 0 4px; gap: 2px; } .lvRow .num { font-size: 10px; } }
+
+/* =====================================================================================================
+   Event cards — the night's briefing and the results are "moments", not menus: a deep night-purple card with
+   a gold rim and a hanging ribbon for the title. Tonight's monster and the relics are playing cards.
+   ===================================================================================================== */
+#nightCard .kcard.nc, #result .kcard.res {
+  background: radial-gradient(120% 90% at 50% 0%, #4d3790 0%, #2b1e55 55%, #1a1233 100%) !important; color: #fff;
+  border: 3px solid #ffcf3f !important; overflow: visible;
+  box-shadow: 0 0 0 3px #22173f, 0 0 0 6px rgba(255,207,63,.3), 0 10px 0 rgba(0,0,0,.45), 0 0 46px rgba(111,79,224,.45), inset 0 2px 0 rgba(255,255,255,.16) !important; }
+.ncBanner, .res .resTitle { align-self: center; margin-top: -3px; display: inline-flex; align-items: center; gap: 10px; border-radius: 0 0 16px 16px;
+  font-weight: 900; text-transform: uppercase; letter-spacing: .08em; line-height: 1; }
+.ncBanner { padding: 7px 26px 9px; font-size: 20px; color: #5a3600; background: linear-gradient(#ffdf6a, #f0a920); box-shadow: 0 4px 0 #a86a00, inset 0 2px 0 rgba(255,255,255,.6); }
+.ncBanner .i { width: 20px; height: 20px; } .ncBanner .num { font-size: 24px; letter-spacing: .02em; }
+
+/* ---------- night briefing ---------- */
+#nightCard .kcard.nc { width: min(880px, 100%); padding: 0 18px 16px; gap: 12px; }
+.ncBody { display: grid; grid-template-columns: 196px minmax(0, 1fr); gap: 16px; width: 100%; align-items: center; }
+.mCard { --mc: #8e6bd8; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 9px 9px 11px; border-radius: 16px; color: var(--ink);
+  background: linear-gradient(180deg, #fffaf0, #f1e2c2); border: 3px solid var(--line); box-shadow: 0 0 0 4px var(--mc), 0 7px 0 rgba(0,0,0,.45); transform: rotate(-2deg); }
+.mArt { width: 100%; aspect-ratio: 1.3; border-radius: 11px; display: grid; place-items: center;
+  background: radial-gradient(circle at 50% 46%, #fff 0, rgba(255,255,255,.92) 26%, rgba(255,255,255,0) 58%), var(--mc); box-shadow: inset 0 -6px 0 rgba(0,0,0,.18), inset 0 0 0 2px rgba(0,0,0,.15); }
+.mArt svg { width: 62%; height: auto; filter: drop-shadow(0 4px 0 rgba(0,0,0,.2)); }
+.mName { position: relative; margin-top: -17px; padding: 3px 14px 4px; border-radius: 999px; background: var(--line); color: #fff; font-size: 16px; font-weight: 900; box-shadow: 0 3px 0 rgba(0,0,0,.3); white-space: nowrap; }
+.mTrait { font-size: 12px; font-weight: 700; line-height: 1.2; text-align: center; color: var(--ink2); }
+.mStats { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 12px; }
+.mStat { display: inline-flex; align-items: center; gap: 4px; } .mStat .i { width: 15px; height: 15px; color: var(--accent); }
+.mStat .pips i { width: 7px; height: 7px; }
+.ncSide { display: flex; flex-direction: column; gap: 11px; min-width: 0; }
+#ncHouse, #ncMods, #ncRelics, #ncKit { width: 100%; text-align: left; display: block; }
+#ncMods:empty, #ncRelics:empty, #ncKit:empty { display: none; }
+.ncLbl { margin-bottom: 5px; font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: .08em; color: #c9b8ff; }
+.houseRow { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.kcard.nc .houseBtn { min-width: 0; padding: 7px 4px 6px; gap: 3px; border-radius: 12px; font-size: 12.5px; font-weight: 800; line-height: 1.1; color: #fff;
+  background: rgba(255,255,255,.08); box-shadow: inset 0 0 0 2px rgba(255,255,255,.12); }
+.kcard.nc .houseBtn .i { width: 20px; height: 20px; color: #ffd866; }
+.kcard.nc .houseBtn.on { background: rgba(255,207,63,.2); box-shadow: inset 0 0 0 2px #ffcf3f, 0 0 14px rgba(255,207,63,.25); }
+.kcard.nc .houseBtn small { color: #ffd866; font-size: 11px; } .kcard.nc .houseBtn small .i { width: 11px; height: 11px; }
+.modRow { display: flex; flex-wrap: wrap; gap: 6px; }
+.kcard.nc .mod { display: inline-flex; align-items: center; gap: 5px; padding: 5px 11px; border-radius: 999px; font-size: 12.5px; font-weight: 800;
+  background: rgba(255,255,255,.1); color: #fff; box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.16); }
+.kcard.nc .mod .i { width: 15px; height: 15px; color: #ffd866; }
+.kcard.nc .mod.dark { background: #0d0818; box-shadow: inset 0 0 0 1.5px rgba(201,184,255,.35); }
+.kcard.nc .relicChip { display: inline-flex; align-items: center; gap: 5px; padding: 5px 11px; border-radius: 999px; font-size: 12.5px; font-weight: 800; color: #fff;
+  background: rgba(155,89,182,.35); border: 1.5px solid #c39bff; }
+.kcard.nc .relicChip .i { width: 15px; height: 15px; color: #ffd866; }
+.kcard.nc .kitRow { display: flex; gap: 8px; flex-wrap: wrap; }
+.kcard.nc .kitPick { width: 48px; height: 48px; border-radius: 13px; color: #fff; background: rgba(255,255,255,.1); box-shadow: inset 0 0 0 2px rgba(255,255,255,.14); }
+.kcard.nc .kitPick.on { background: var(--accent); box-shadow: 0 3px 0 var(--accent2), inset 0 0 0 2px #c9b8ff; }
+.ncFoot { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; }
+#ncRent .pill.rent { background: rgba(255,255,255,.12); color: #fff; height: 32px; } #ncRent .pill.rent .pSub { border-left-color: rgba(255,255,255,.25); }
+#ncRent .pill.rent.soon { background: #ff5a6a; box-shadow: 0 3px 0 #a3202f; }
+#nightCard #sneakBtn { min-width: 250px; margin: 0; }
+#nightCard #sneakBtn:disabled { filter: grayscale(1) opacity(.4); }
+
+/* ---------- relic offer: three playing cards, one has to be taken ---------- */
+.relicPick:empty { display: none; }
+.kcard.nc.picking > :not(.relicPick):not(.ncBanner) { display: none !important; }
+.relicPick { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 2px 0 8px; }
+.rpHead { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.rpTitle { display: flex; align-items: center; gap: 9px; font-size: 25px; font-weight: 900; color: #ffd866; text-shadow: 0 3px 0 rgba(0,0,0,.4); }
+.rpTitle .i { width: 17px; height: 17px; }
+.rpSub { font-size: 13px; font-weight: 700; color: #c9b8ff; }
+.relicPick .relicCards { display: flex; gap: 18px; justify-content: center; width: auto; flex-wrap: nowrap; }
+.relicPick .relicCard { position: relative; flex: none; width: 170px; max-width: none; aspect-ratio: 5 / 7; display: flex; flex-direction: column; align-items: center; padding: 8px;
+  border-radius: 14px; border: 3px solid var(--line); color: var(--ink); background: linear-gradient(160deg, #fff7de, #efd9a4);
+  box-shadow: 0 0 0 3px #ffcf3f, 0 9px 0 rgba(0,0,0,.45), 0 0 26px rgba(255,207,63,.35);
+  transition: transform .15s ease-out, box-shadow .15s; animation: dealIn .5s cubic-bezier(.2,.9,.3,1.3) backwards; animation-delay: var(--d, 0s); }
+.relicPick .relicCard.rc0 { transform: rotate(-5deg) translateY(8px); } .relicPick .relicCard.rc2 { transform: rotate(5deg) translateY(8px); }
+.relicPick .relicCard:hover { transform: translateY(-10px) scale(1.05); z-index: 2; box-shadow: 0 0 0 3px #ffe58a, 0 14px 0 rgba(0,0,0,.4), 0 0 36px rgba(255,207,63,.6); }
+.relicPick .relicCard:active { transform: translateY(-4px) scale(.98); }
+.rcArt { width: 100%; flex: 0 0 42%; border-radius: 9px; display: grid; place-items: center; color: #fff;
+  background: radial-gradient(circle at 50% 32%, #a688ff, #4a2fb0 72%); box-shadow: inset 0 0 0 2px rgba(0,0,0,.25), inset 0 -6px 0 rgba(0,0,0,.2); }
+.rcArt .i { width: 50px; height: 50px; filter: drop-shadow(0 3px 0 rgba(0,0,0,.3)); }
+.rcName { position: relative; max-width: 100%; margin-top: -12px; padding: 4px 10px; border-radius: 8px; font-size: 14px; font-weight: 900; line-height: 1.1; text-align: center;
+  color: #ffd866; background: var(--line); box-shadow: 0 3px 0 rgba(0,0,0,.3); }
+.rcText { flex: 1; width: 100%; display: flex; flex-direction: column; justify-content: center; gap: 7px; padding: 6px 2px 0; text-align: left; }
+.rcPro, .rcCon { display: flex; align-items: flex-start; gap: 5px; font-size: 12px; font-weight: 800; line-height: 1.2; }
+.rcPro { color: #1f6b2c; } .rcCon { color: #a3361f; }
+.rcPro .i, .rcCon .i { flex: none; width: 10px; height: 10px; margin-top: 3px; }
+.relicPick.done .relicCard:not(.chosen) { opacity: .25; filter: grayscale(.8); transform: scale(.9); }
+.relicPick .relicCard.chosen { z-index: 3; animation: cardTake .52s ease-in forwards; }
+@keyframes dealIn { from { opacity: 0; transform: translateY(46px) rotate(10deg) scale(.75); } }
+@keyframes cardTake { 35% { transform: translateY(-18px) scale(1.12); } 100% { transform: translateY(-140px) scale(.45); opacity: 0; } }
+
+/* ---------- results ---------- */
+#result .kcard.res { width: min(580px, 100%); padding: 0 20px 18px; gap: 11px; }
+.res .resTitle { padding: 9px 40px 11px; font-size: 30px; color: #fff; text-shadow: 0 3px 0 rgba(0,0,0,.35);
+  background: linear-gradient(#63d974, #2f9e48); box-shadow: 0 5px 0 #1d6d30, inset 0 2px 0 rgba(255,255,255,.4); }
+.res.lose .resTitle { background: linear-gradient(#ff7272, #c83a3a); box-shadow: 0 5px 0 #8a2020, inset 0 2px 0 rgba(255,255,255,.4); }
+.res.rent .resTitle { background: linear-gradient(#a88bff, #5a3ad0); box-shadow: 0 5px 0 #38208f, inset 0 2px 0 rgba(255,255,255,.35); }
+.res.over .resTitle { background: linear-gradient(#635b7a, #2e2840); box-shadow: 0 5px 0 #15111f, inset 0 2px 0 rgba(255,255,255,.2); }
+#result .kcard.res.lose { border-color: #ff7272 !important; } #result .kcard.res.over { border-color: #8d84a8 !important; }
+.res .stars:empty, .res #resLines:empty, .res .resItems:empty, .res .resTotal:empty { display: none; }
+.res .stars i { filter: brightness(.3) saturate(.4); } .res .stars i.on { filter: drop-shadow(0 0 10px rgba(255,207,63,.75)); }
+.res .resItems { gap: 8px; justify-content: center; }
+.res .rItem { flex-direction: column; justify-content: flex-start; gap: 4px; width: 86px; padding: 8px 4px 7px; border-radius: 14px; color: var(--ink); font-size: 11.5px; font-weight: 800; line-height: 1.1;
+  text-align: center; text-decoration: none; background: linear-gradient(180deg, #fffaf0, #f1e2c2); box-shadow: 0 4px 0 rgba(0,0,0,.4);
+  animation: lootDrop .42s cubic-bezier(.2,.9,.3,1.4) backwards; animation-delay: var(--d, 0s); }
+.res .rItem .lootIc { position: relative; width: 40px; height: 40px; } .res .rItem .lootIc .i { width: 24px; height: 24px; }
+.res .rItem.bad { background: linear-gradient(180deg, #e9e4ef, #cfc6dc); color: #6b6488; } .res .rItem.bad .lootIc { filter: grayscale(1); opacity: .6; }
+.rX { position: absolute; inset: 0; display: grid; place-items: center; color: #e8414d; } .rX .i { width: 34px !important; height: 34px !important; color: #e8414d !important; }
+@keyframes lootDrop { from { opacity: 0; transform: translateY(-34px) scale(.6); } }
+.res .rl { background: rgba(255,255,255,.12); color: #fff; } .res .rl.good { color: #ffd866; } .res .rl.bad { color: #ff9a9a; }
+.res .resText { color: #e6dcff; } .res .resTotal .small { color: #c9b8ff; }
+.res .goRun div { background: rgba(255,255,255,.1); color: #e6dcff; } .res .goRun b { color: #ffd866; }
+
+/* phones in landscape */
+@media (orientation: landscape) and (max-height: 500px) {
+  #nightCard .kcard.nc { width: min(800px, 96vw); padding: 0 12px 10px; gap: 8px; border-width: 2.5px !important; }
+  .ncBanner { padding: 5px 20px 7px; font-size: 15px; gap: 7px; } .ncBanner .i { width: 15px; height: 15px; } .ncBanner .num { font-size: 18px; }
+  .ncBody { grid-template-columns: 150px minmax(0, 1fr); gap: 12px; }
+  .mCard { padding: 6px 6px 8px; gap: 4px; border-radius: 13px; border-width: 2.5px; box-shadow: 0 0 0 3px var(--mc), 0 5px 0 rgba(0,0,0,.45); }
+  .mArt { aspect-ratio: 1.6; } .mName { font-size: 13px; margin-top: -14px; padding: 2px 11px 3px; } .mTrait { font-size: 10px; }
+  .mStats { gap: 1px 10px; } .mStat .i { width: 12px; height: 12px; } .mStat .pips i { width: 5px; height: 5px; }
+  .ncSide { gap: 7px; } .ncLbl { font-size: 9.5px; margin-bottom: 3px; }
+  .kcard.nc .houseBtn { padding: 4px 3px; font-size: 11px; gap: 1px; } .kcard.nc .houseBtn .i { width: 16px; height: 16px; } .kcard.nc .houseBtn small { font-size: 10px; }
+  .kcard.nc .mod, .kcard.nc .relicChip { font-size: 11px; padding: 3px 9px; } .kcard.nc .mod .i, .kcard.nc .relicChip .i { width: 13px; height: 13px; }
+  .kcard.nc .kitPick { width: 38px; height: 38px; border-radius: 11px; } .kcard.nc .kitPick .i { width: 21px; height: 21px; }
+  #ncRent .pill.rent { height: 27px; }
+  #nightCard #sneakBtn { min-width: 190px !important; height: 42px !important; font-size: 18px !important; border-width: 8px 8px 11px 8px !important; }
+  .relicPick { gap: 8px; padding-bottom: 4px; } .rpTitle { font-size: 19px; } .rpTitle .i { width: 13px; height: 13px; } .rpSub { font-size: 11px; }
+  .relicPick .relicCards { gap: 14px; }
+  .relicPick .relicCard { width: 136px; padding: 6px; border-radius: 12px; border-width: 2.5px; }
+  .rcArt .i { width: 38px; height: 38px; } .rcName { font-size: 12px; margin-top: -10px; padding: 3px 8px; } .rcText { gap: 5px; padding-top: 4px; }
+  .rcPro, .rcCon { font-size: 10.5px; gap: 4px; } .rcPro .i, .rcCon .i { width: 8px; height: 8px; margin-top: 3px; }
+  #result .kcard.res { width: min(560px, 92vw); padding: 0 14px 10px; gap: 6px; border-width: 2.5px !important; }
+  .res .resTitle { font-size: 21px; padding: 6px 28px 8px; }
+  .res .stars i { width: 38px !important; height: 36px !important; } .res .stars i:nth-child(2) { width: 46px !important; height: 43px !important; margin-top: -6px; }
+  .res .rItem { width: 70px; padding: 5px 3px; font-size: 10px; border-radius: 11px; gap: 2px; } .res .rItem .lootIc { width: 30px; height: 30px; } .res .rItem .lootIc .i { width: 18px; height: 18px; }
+  .rX .i { width: 26px !important; height: 26px !important; }
+}
+/* the handbook's treasure rows */
+.treasureRow { display: flex; align-items: center; gap: 9px; padding: 7px 9px 7px 7px; }
+.treasureRow .lootIc { width: 38px; height: 38px; } .treasureRow .lootIc .i { width: 22px; height: 22px; }
+.treasureRow .gt { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.treasureRow .gt b { display: flex; align-items: center; gap: 5px; font-size: 13.5px; }
+.tierStars { display: flex; gap: 2px; } .tierStars i { width: 12px; height: 12px; background: url('/ui/star.png') center / contain no-repeat; filter: grayscale(1) opacity(.25); }
+.tierStars i.f { filter: none; }
+.tierBadge { width: 18px; height: 18px; border-radius: 50%; display: inline-grid; place-items: center; color: #fff; flex: none; }
+.tierBadge .i { width: 11px; height: 11px; } .tierBadge.cursed { background: #8e44ad; } .tierBadge.legend { background: #e0a400; }
+.treasureRow.cursed .lootIc { color: #8e44ad; background: radial-gradient(circle at 35% 30%, #f6ecff, #dcc3f0); }
+.treasureRow.legend .lootIc { color: #b07800; background: radial-gradient(circle at 35% 30%, #fff8dc, #ffe08a); }
+.treasureRow.locked .lootIc { color: #9a93ad; background: #ece8f2; box-shadow: none; }
+.tStats { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; flex: none; }
+.tStats .bmStatChip { display: inline-flex; align-items: center; gap: 3px; } .tStats .bmStatChip .i { width: 12px; height: 12px; } .tStats .coin { width: 13px; height: 13px; }
+@media (orientation: landscape) and (max-height: 500px) {
+  .treasureRow { padding: 5px 7px 5px 5px; gap: 7px; } .treasureRow .lootIc { width: 30px; height: 30px; } .treasureRow .lootIc .i { width: 17px; height: 17px; }
+  .treasureRow .gt b { font-size: 12px; } .tierStars i { width: 10px; height: 10px; } .tStats { flex-direction: row; }
+}
