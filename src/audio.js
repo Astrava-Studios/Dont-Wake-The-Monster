@@ -220,9 +220,15 @@ export class Sfx {
   // plays a sample voice; returns true when it fully replaces the synth (false for layered or missing voices)
   sample(name, o = {}) {
     const e = this.samples[name]; if (!e || !this.ok) return false;
-    let i = Math.floor(Math.random() * e.bufs.length); if (e.bufs.length > 1 && i === e.last) i = (i + 1) % e.bufs.length; e.last = i;
+    let i = Math.floor(Math.random() * e.bufs.length); if (e.bufs.length > 1 && i === e.last) i = (i + 1) % e.bufs.length;
+    if (o.len) { // fit a wanted length: one of the two closest takes (never the last one), nudged by playback rate
+      const near = e.bufs.map((b, k) => k).filter((k) => k !== e.last || e.bufs.length < 3).sort((a, b) => Math.abs(e.bufs[a].duration - o.len) - Math.abs(e.bufs[b].duration - o.len));
+      i = near[Math.floor(Math.random() * Math.min(2, near.length))];
+    }
+    e.last = i;
     const c = this.ctx, src = c.createBufferSource(); src.buffer = e.bufs[i];
-    src.playbackRate.value = (o.rate || 1) * (e.pitch[0] + Math.random() * (e.pitch[1] - e.pitch[0]));
+    const fit = o.len ? Math.min(1.3, Math.max(0.8, e.bufs[i].duration / o.len)) : 1;
+    src.playbackRate.value = (o.rate || 1) * fit * (e.pitch[0] + Math.random() * (e.pitch[1] - e.pitch[0]));
     const g = c.createGain(); g.gain.value = (o.vol ?? 0.6) * e.vol; src.connect(g); g.connect(this.out(o));
     src.start(c.currentTime + (o.delay || 0));
     return !e.layer;
@@ -409,7 +415,7 @@ export class Sfx {
 
   // ---------- monster ----------
   snore(len = 1.8, x, z, k = 1) { // k: loudness (the menu plays it soft)
-    if (!this.ok) return; if (this.sample('snore', { x, z, vol: 0.7 * k })) return;
+    if (!this.ok) return; if (this.sample('snore', { x, z, vol: 0.7 * k, len: len + 0.35 })) return; // takes carry ~0.35 s of tail
     const c = this.ctx, t = c.currentTime, out = this.out({ x, z });
     const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(46, t); o.frequency.linearRampToValueAtTime(60, t + len * 0.6); o.frequency.linearRampToValueAtTime(42, t + len);
     const f = c.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 320; f.Q.value = 1.2;
@@ -419,7 +425,7 @@ export class Sfx {
     this.noise(len, { freq: 600, q: 0.7, vol: 0.06 * k, att: len * 0.5, x, z });
     this.noise(0.9, { type: 'bandpass', freq: 500, slide: 1400, q: 1, vol: 0.03 * k, att: 0.5, delay: len + 0.4, x, z }); // whistle on the out-breath
   }
-  hmm(x, z) { this.tone(130, 0.5, { vol: 0.22, slide: 185, lp: 600, x, z }); this.tone(185, 0.4, { vol: 0.16, slide: 145, lp: 600, delay: 0.42, x, z }); }
+  hmm(x, z) { if (this.sample('hmm', { x, z, vol: 0.7 })) return; this.tone(130, 0.5, { vol: 0.22, slide: 185, lp: 600, x, z }); this.tone(185, 0.4, { vol: 0.16, slide: 145, lp: 600, delay: 0.42, x, z }); }
   roar(x, z) {
     if (!this.ok) return; this.duck(0.12, 1.6); if (this.sample('roar', { x, z, vol: 0.9 })) return;
     const c = this.ctx, t = c.currentTime, out = this.out({ x, z });
@@ -432,8 +438,8 @@ export class Sfx {
     this.tone(55, 0.5, { vol: 0.5, slide: 30, x, z }); // sub thump
   }
   stomp(x, z) { if (this.sample('stomp', { x, z, vol: 0.8 })) return; this.tone(70 * jit(0.1), 0.18, { vol: 0.28, slide: 38, x, z }); this.noise(0.09, { freq: 300, vol: 0.08, x, z }); }
-  yawn(x, z) { this.tone(240, 1.3, { vol: 0.16, slide: 110, lp: 900, att: 0.3, x, z }); }
-  groan(x, z) { this.tone(115, 0.7, { vol: 0.22, slide: 75, lp: 400, x, z }); this.noise(0.4, { freq: 260, vol: 0.08, x, z }); }
+  yawn(x, z) { if (this.sample('yawn', { x, z, vol: 0.7 })) return; this.tone(240, 1.3, { vol: 0.16, slide: 110, lp: 900, att: 0.3, x, z }); }
+  groan(x, z) { if (this.sample('groan', { x, z, vol: 0.7 })) return; this.tone(115, 0.7, { vol: 0.22, slide: 75, lp: 400, x, z }); this.noise(0.4, { freq: 260, vol: 0.08, x, z }); }
   rustle(x, z) { this.noise(0.3, { type: 'bandpass', freq: 650, q: 2, vol: 0.09, x, z }); }
   catHiss(x, z) {
     this.noise(0.38, { type: 'bandpass', freq: 4500, q: 2.5, vol: 0.16, x, z });
@@ -543,7 +549,7 @@ export async function audioReport(samples = {}) { // pass the live Sfx samples t
     let peak = 0, sum = 0; const d = buf.getChannelData(0), e = buf.getChannelData(1);
     for (let i = 0; i < d.length; i++) { const a = Math.max(Math.abs(d[i]), Math.abs(e[i])); peak = Math.max(peak, a); sum += d[i] * d[i]; }
     const rms = Math.sqrt(sum / d.length);
-    rows.push({ name, src: Object.keys(samples).length ? (samples[{ stepWood: 'stepWood', stepRug: 'stepRug', coins: 'coins', gem: 'gem', goldBars: 'goblet', crown: 'crown', chest: 'chest', squeak: 'squeak', creak: 'creak', stomp: 'stomp', tick: 'tick', click: 'click', drop: 'drop', door: 'door', thud: 'stomp', deny: 'deny', whoosh: 'toggle', houseCreak: 'houseCreak', feather: 'power' }[name]] ? 'kenney' : 'synth') : 'synth', peak: +peak.toFixed(3), rmsDb: +(20 * Math.log10(rms + 1e-9)).toFixed(1), ok: peak > 0.005 && peak < 0.99 });
+    rows.push({ name, src: Object.keys(samples).length ? (samples[{ stepWood: 'stepWood', stepRug: 'stepRug', coins: 'coins', gem: 'gem', goldBars: 'goblet', crown: 'crown', chest: 'chest', squeak: 'squeak', creak: 'creak', stomp: 'stomp', tick: 'tick', click: 'click', drop: 'drop', door: 'door', thud: 'stomp', deny: 'deny', whoosh: 'toggle', houseCreak: 'houseCreak', feather: 'power', snore: 'snore', roar: 'roar', hmm: 'hmm', groan: 'groan', yawn: 'yawn' }[name]] ? 'kenney' : 'synth') : 'synth', peak: +peak.toFixed(3), rmsDb: +(20 * Math.log10(rms + 1e-9)).toFixed(1), ok: peak > 0.005 && peak < 0.99 });
   }
   return rows;
 }

@@ -19,5 +19,10 @@
   "deny": {"files": ["error_001", "error_002"], "vol": 0.6, "pitch": [1,1]},
   "toggle": {"files": ["ui_switch-a"], "vol": 0.7, "pitch": [1,1]},
   "confirm": {"files": ["confirmation_001", "confirmation_002"], "vol": 0.6, "pitch": [1,1]},
-  "tick": {"files": ["tick_001", "tick_002"], "vol": 0.35, "pitch": [0.95,1.05]}
+  "tick": {"files": ["tick_001", "tick_002"], "vol": 0.35, "pitch": [0.95,1.05]},
+  "snore": {"files": ["snore_monster"], "vol": 0.5, "pitch": [0.9,1.05]},
+  "roar": {"files": ["monster_roar_1", "monster_roar_2", "monster_roar_3"], "vol": 1, "pitch": [0.72,0.82]},
+  "hmm": {"files": ["monster_hmm_1", "monster_hmm_2", "monster_hmm_3"], "vol": 0.6, "pitch": [0.8,0.9]},
+  "groan": {"files": ["monster_groan_1", "monster_groan_2", "monster_groan_3"], "vol": 0.5, "pitch": [0.75,0.85]},
+  "yawn": {"files": ["monster_yawn_1", "monster_yawn_2"], "vol": 0.6, "pitch": [0.7,0.8]}
 }
