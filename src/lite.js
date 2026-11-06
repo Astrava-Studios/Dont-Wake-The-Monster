@@ -22,6 +22,7 @@ function toLite(m) {
   l.color.copy(m.color);
   if (m.metalness > 0.3) l.color.multiplyScalar(1 - m.metalness * 0.35); // without reflections bright metal reads too light
   l.userData.std = m;
+  if (m.userData.liteHook) m.userData.liteHook(l); // custom shader patches (the Hornbeast's soft rig + tint) carry over
   if (m.userData.dk) patchDarkMaterial(l);
   liteOf.set(m, l);
   return l;

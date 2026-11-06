@@ -15,6 +15,7 @@ const FILES = {
   pillowA: 'furniture/pillow_A.gltf', pillowB: 'furniture/pillow_B.gltf', books: 'furniture/book_set.gltf', book: 'furniture/book_single.gltf',
   wallShelf: 'furniture/shelf_A_small.gltf', frameS1: 'furniture/pictureframe_small_A.gltf', frameS2: 'furniture/pictureframe_small_B.gltf',
   chair: 'furniture/chair_A.gltf', candleMelted: 'dungeon/candle_melted.gltf', bottleA: 'dungeon/bottle_A_brown.gltf', bottleB: 'dungeon/bottle_B_green.gltf',
+  hornbeast: 'monster/hornbeast.glb', // Meshy AI model (see src/hornbeast.js)
   rogue: 'chars/Rogue_Hooded.glb', animMove: 'chars/Rig_Medium_MovementBasic.glb', animGen: 'chars/Rig_Medium_General.glb',
 };
 const lib = {};
@@ -34,6 +35,8 @@ export async function loadAssets(onProgress, { skip = false } = {}) {
   return lib;
 }
 export const has = (k) => !!lib[k];
+// the Hornbeast's mesh (shared geometry + material), or null when it did not load
+export function hornbeastMesh() { return lib.hornbeast ? lib.hornbeast.scene.getObjectByProperty('isMesh', true) : null; }
 
 const box = new THREE.Box3(), v = new THREE.Vector3(), c = new THREE.Vector3();
 // Wrap a clone in a group, scale it to w x h x d (0 = keep proportional), sit it on y=0, centred on x/z.
