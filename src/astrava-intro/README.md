@@ -14,7 +14,8 @@ Tüm Astrava oyunlarında kullanılacak açılış (~6,7 sn). Tek dosya: `astrav
 3. Açılışta çağır (oyun arkada yüklenmeye devam edebilir):
    ```js
    import { playAstravaIntro } from './astravaIntro.js';
-   await playAstravaIntro({ volume: 0.9, tapText: 'Başlamak için dokun' });
+   await playAstravaIntro({ volume: 0.9, skippable: false, tapText: 'Başlamak için dokun' });
+   startGameAudio(); // intro bitince oyun sesini dokunmadan başlat
    ```
    Çağırmadığın durumlarda (debug vb.) `#astrava-boot`'u kendin kaldır.
 
