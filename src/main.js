@@ -26,6 +26,7 @@ import { makeBody } from './physics.js';
 import { rentAmount, rentDueNow, nightsToRent, canPayRent, payRent, packKit, unpackKit, endRun } from './run.js';
 import { createMarketView } from './marketView.js';
 import { createHideoutView } from './hideoutView.js';
+import { createMenuScene } from './menuScene.js';
 import { createBestiaryView } from './bestiaryView.js';
 import { createBot } from './bot.js';
 import { SHOP, shopCost, BRANCHES, skillLocked } from './texts.js';
@@ -360,9 +361,9 @@ function addTreasureView(t, delay = 0) {
   g.scale.setScalar(0.001);
   props.treasures.set(t.id, { g, kind: t.kind, bob: Math.random() * 6, spawnAt: time + delay, fly: null, base: 1 });
 }
-function makeMonster(type) {
-  const m = buildMonster(type); m.group.position.set(L.nest.x, 0.15, L.nest.z); world.add(m.group);
-  return { ...m, type, jolt: 0, scale0: type.scale };
+function makeMonster(type, home = { x: L.nest.x, z: L.nest.z, yaw: 0 }) {
+  const m = buildMonster(type); m.group.position.set(home.x, 0.15, home.z); world.add(m.group);
+  return { ...m, type, jolt: 0, scale0: type.scale, home };
 }
 
 // ---------------- night lifecycle ----------------
@@ -719,7 +720,8 @@ function animate(dt) {
   const pg = player.group;
   if (pl) { pg.position.set(pl.x, 0, pl.z); pg.rotation.y = pl.facing; }
   else if (L) { pg.position.set(L.start.x, 0, L.start.z); pg.rotation.y = -L.exit.side * Math.PI / 2; }
-  const m = pl ? pl.m : 0; const tip = m > 0.02 && m < RULES.player.tiptoeBelow;
+  const menuSneak = !pl && mode === 'menu' && menuScene.built;
+  const m = pl ? pl.m : menuSneak ? menuScene.V.m : 0; const tip = m > 0.02 && m < RULES.player.tiptoeBelow;
   if (player.mixer) animateRogue(dt, m, tip);
   else {
     P_step += dt * (m > 0.02 ? 6 + m * 8 : 0);
@@ -787,7 +789,7 @@ function animate(dt) {
       c.intensity = c.visible ? 3 * (1 + Math.sin(time * 11 + i * 2) * 0.08) : 0;
     });
   }
-  hideoutView.update(dt);
+  hideoutView.update(dt); if (mode === 'menu') menuScene.update(dt);
   for (const sm of props.squeakMeshes.values()) if (sm.userData.flash > 0) { sm.userData.flash -= dt * 1.5; sm.position.y = 0.008 - Math.max(0, sm.userData.flash) * 0.04; }
   if (props.exitMat) {
     const ready = S && S.bag.length > 0;
@@ -814,7 +816,7 @@ function animate(dt) {
   renderBodies();
   if (MO) animateMonster(dt);
   // Zzz
-  const sleeping = MO && (!S || (S.monster.state === 'sleep' && S.peek === 'none'));
+  const sleeping = MO && (S ? S.monster.state === 'sleep' && S.peek === 'none' : !(mode === 'menu' && menuScene.V.peek !== 'none'));
   if (MO) MO.head.getWorldPosition(tmpV);
   for (const z of zs) {
     z.s.visible = !!sleeping; if (!z.s.visible) continue;
@@ -872,13 +874,13 @@ function animateRogue(dt, m, tip) {
 }
 
 function animateMonster(dt) {
-  const ms = S ? S.monster : { state: 'sleep', stun: 0, t: 0, x: L.nest.x, z: L.nest.z, yaw: 0 };
+  const ms = S ? S.monster : { state: 'sleep', stun: 0, t: 0, x: MO.home.x, z: MO.home.z, yaw: MO.home.yaw };
   const st = ms.state; const p = MO.pivot;
   MO.group.position.set(ms.x, 0.15, ms.z); MO.group.rotation.y = ms.yaw;
   MO.jolt = Math.max(0, MO.jolt - dt * 2.5);
   const j = Math.sin(MO.jolt * Math.PI * 2) * MO.jolt; // wake-up squash & stretch
   MO.group.scale.set(MO.scale0 * (1 - j * 0.15), MO.scale0 * (1 + j * 0.25), MO.scale0 * (1 - j * 0.15));
-  const peek = S && S.peek;
+  const peek = S ? S.peek : menuScene.built && mode === 'menu' ? menuScene.V.peek : null;
   if (st === 'sleep') {
     const sn = S && S.snoring; const br = Math.sin(time * (sn ? 1.8 : 1.3));
     p.scale.set(1 + br * 0.015, 1 + br * (sn ? 0.06 : 0.035), 1); p.position.y = 0; p.rotation.set(0, 0, 0);
@@ -936,9 +938,9 @@ function animateMonster(dt) {
   }
 }
 function lookAtPlayer() {
-  if (!S) return;
   MO.head.getWorldPosition(tmpV);
-  const dx = S.player.x - tmpV.x, dz = S.player.z - tmpV.z, d = Math.hypot(dx, dz) || 1, yaw = S.monster.yaw;
+  const pp = S ? S.player : player.group.position;
+  const dx = pp.x - tmpV.x, dz = pp.z - tmpV.z, d = Math.hypot(dx, dz) || 1, yaw = S ? S.monster.yaw : MO.group.rotation.y;
   const lx = clamp(dx / d * Math.cos(yaw) - dz / d * Math.sin(yaw), -1, 1);
   MO.pupils.forEach((pu) => { pu.position.x = lx * 0.07; pu.position.y = -0.03; });
 }
@@ -983,7 +985,11 @@ let camSnap = true; const camLook = new THREE.Vector3(), _ct = new THREE.Vector3
 function updateCamera(dt) {
   const portrait = innerWidth < innerHeight;
   let target, off;
-  if ((mode === 'menu' || mode === 'hideout') && !L && hideoutView.built) {
+  if (mode === 'menu' && !L && menuScene.built) {
+    target = portrait ? _ct.set(-0.6, 0.4, -0.6) : _ct.set(-0.2, 1.1, -0.9);
+    off = portrait ? _co.set(0, 4.8, 13.5) : _co.set(0, 2.5, 8.8);
+  }
+  else if ((mode === 'menu' || mode === 'hideout') && !L && hideoutView.built) {
     target = (mode === 'hideout' && !portrait) ? _ct.set(1.5, 1.2, -0.5) : _ct.set(0, 0.9, -0.4);
     off = portrait ? _co.set(0, 6.2, 12.5) : (mode === 'hideout' ? _co.set(0, 3.8, 8.5) : _co.set(0, 3.4, 7.8));
   }
@@ -1082,7 +1088,7 @@ function debugLog() {
 function toMenu() {
   mode = 'menu'; hide('hud'); hide('result'); hide('pause'); show('menu');
   S = null;
-  L = null; MO = null; hideoutView.build(); camSnap = true;
+  L = null; MO = null; menuScene.build(); MO = makeMonster(menuScene.V.monster, menuScene.V.home); camSnap = true;
   $('stashBadge').textContent = save.stash.length; $('stashBadge').classList.toggle('hidden', !save.stash.length);
   $('menuStats').innerHTML = `<div class="kpanel dark"><span class="coin"></span><span class="num">${save.coins}</span></div><div class="kpanel">${icon('moon')}<span class="num">${run.night}</span></div>` + (save.bestNight ? `<div class="kpanel" title="${t('bestNight')}">${icon('trophy')}<span class="num">${save.bestNight}</span></div>` : '');
 }
@@ -1153,8 +1159,12 @@ $('marketBtn').onclick = () => { hide('menu'); marketView.enter('menu'); };
 const hideoutView = createHideoutView({
   $, show, hide, icon, t, setText: setTextOf, lanternName, decorName, itemName, save, writeSave, sfx, M, toon, AS, buildTreasure, buildFurniture,
   scene, hemi, sun, moon, lantern, nestLight, candles, get player() { return player; },
-  clearWorld: () => { clearWorld(); return world; }, dress: (w) => dress(w), floaterScreen: (txt) => banner(txt, 1), toMenu: () => toMenu(),
+  clearWorld: () => { clearWorld(); menuScene.leave(); MO = null; return world; }, dress: (w) => dress(w), floaterScreen: (txt) => banner(txt, 1), toMenu: () => toMenu(),
   setMode: (m) => { mode = m; S = null; MO = null; ['menu', 'hud', 'result', 'nightCard', 'shop', 'how', 'settings', 'pause'].forEach(hide); camSnap = Q.has('demo'); },
+});
+const menuScene = createMenuScene({
+  M, toon, AS, buildNest, buildTreasure, buildFurniture, scene, hemi, sun, moon, lantern, nestLight, candles, get player() { return player; },
+  clearWorld: () => { clearWorld(); hideoutView.leaveScene(); return world; },
 });
 $('wardrobeBtn').onclick = () => hideoutView.openWardrobe();
 $('hideoutBtn').onclick = () => hideoutView.openHideout();

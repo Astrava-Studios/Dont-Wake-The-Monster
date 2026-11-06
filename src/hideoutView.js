@@ -1,4 +1,4 @@
-// The hideout: a cozy attic that is the menu's background. Bed, loot pile (grows with the stash), trophy shelf
+// The hideout: a cozy attic, the backdrop of the Wardrobe and Hideout panels (the menu shows the monster's room, menuScene.js). Bed, loot pile (grows with the stash), trophy shelf
 // (every kind you ever stole), repair table, wardrobe and the decor you bought. Plus two panels:
 // Wardrobe (costumes + lantern looks, tried on live) and Hideout (stash size, repair table, decor).
 // Logic lives in hideout.js (pure, tested); this file only draws and wires buttons.
@@ -96,7 +96,7 @@ export function createHideoutView(d) {
   // ---------- wardrobe ----------
   const coins = (id) => { $(id).textContent = save.coins; };
   function openWardrobe() {
-    V.preview = { ...save.meta.wear }; V.sel = null; V.tab = 'hat';
+    build(); V.preview = { ...save.meta.wear }; V.sel = null; V.tab = 'hat';
     d.setMode('wardrobe'); hide('menu'); show('wardrobe'); renderWardrobe();
   }
   function bonusLine(w) {
@@ -151,7 +151,7 @@ export function createHideoutView(d) {
   function closeWardrobe() { hide('wardrobe'); d.dress(save.meta.wear); d.toMenu(); }
 
   // ---------- hideout panel ----------
-  function openHideout() { V.htab = 'up'; d.setMode('hideout'); hide('menu'); show('hideoutUI'); renderHideout(); }
+  function openHideout() { build(); V.htab = 'up'; d.setMode('hideout'); hide('menu'); show('hideoutUI'); renderHideout(); }
   function renderHideout() {
     coins('hoCoins'); const r = save.run, m = save.meta;
     const tabs = `<div class="mkTabs"><button class="tab ${V.htab === 'up' ? 'on' : ''}" data-ht="up">${icon('tools')}<span>${t('upgradesT')}</span></button><button class="tab ${V.htab === 'decor' ? 'on' : ''}" data-ht="decor">${icon('d_rug')}<span>${t('decorT')}</span></button></div>`;
