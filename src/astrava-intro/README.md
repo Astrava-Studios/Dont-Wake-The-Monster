@@ -1,12 +1,12 @@
 # Astrava Studios açılış sahnesi
 
-Tüm Astrava oyunlarında kullanılacak açılış (~6,7 sn). Tek dosya: `astravaIntro.js`. Bağımlılığı ve asset dosyası yok. Logo vektör olarak çizildi, sesler WebAudio ile anlık üretiliyor.
+Tüm Astrava oyunlarında kullanılacak açılış (~6,7 sn). İki dosya: `astravaIntro.js` ve sesi `astrava-intro.wav`. Bağımlılık yok, logo vektör olarak çizildi.
 
 **Akış:** yıldız alanı → hiper-uzay atlayışı ve logonun ışıkla çizilmesi → patlama (bas vuruşu, flaş, şok dalgası, yatay flare, sarsıntı) → ASTRAVA yazısı → STUDIOS → parlama geçişi → karartma.
 
 ## Başka bir oyuna ekleme
 
-1. `astravaIntro.js` dosyasını kopyala.
+1. `astravaIntro.js` ve `astrava-intro.wav` dosyalarını yan yana kopyala.
 2. `index.html` içinde `<body>`'nin ilk çocuğu olarak ekle (JS yüklenene kadar oyun ekranı görünmesin):
    ```html
    <div id="astrava-boot" style="position:fixed;inset:0;background:#000;z-index:2147483000"></div>
@@ -29,7 +29,16 @@ Tüm Astrava oyunlarında kullanılacak açılış (~6,7 sn). Tek dosya: `astrav
 | `blockInput` | `true` | intro sürerken dokunuşlar oyuna ulaşmaz |
 | `tapText` | `'Tap to start'` | tarayıcı sesi kilitliyse çıkan "dokun" yazısı |
 | `mount` | `document.body` | nereye eklenecek |
+| `soundUrl` | yandaki `astrava-intro.wav` | ses dosyası |
+| `onReveal` | - | siyah örtü kalkmaya başlarken çağrılır (oyun yeniden çizmeye başlayabilir) |
 
 Ses kilidi: Capacitor (Android WebView) içinde ses dokunmadan çalar. Normal tarayıcıda kullanıcı daha önce siteye dokunmadıysa önce logo ve `tapText` gösterilir, dokununca intro sesli başlar.
 
 Zamanlama `ASTRAVA_INTRO_TIMES` içinde (saniye).
+
+## Performans (telefon)
+
+- Ses tek bir hazır WAV olarak çalınır. Telefonun ses iş parçacığı yalnızca onu akıtır, yükleme sırasında cızırtı olmaz. WAV yoksa ses önce çevrimdışı render edilir, o da olmazsa canlı sentezlenir.
+- Ses `score()` içinde üretiliyor. Değiştirince WAV'ı yeniden üret: geliştirme sunucusunun konsolunda `(await import('/src/astrava-intro/astravaIntro.js')).downloadScoreWav()`, inen dosyayı `astrava-intro.wav` yerine koy.
+- Tek bulanıklık filtresi ayrı bir katmanda bir kez çizilir. Logo ölçeklemesi GPU katmanında yapılır, yıldızlar birkaç toplu çizimle çizilir.
+- Intro sürerken oyunun kendi 3D çizimini durdur (bu oyunda `introOn` bayrağı), yoksa telefon iki işi birden yapar.

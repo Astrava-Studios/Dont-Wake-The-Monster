@@ -35,13 +35,16 @@ const CSS = `
 .astrava-intro .ai-shake{position:relative}
 .astrava-intro .ai-stage{position:relative;width:min(78vw,88vh,820px)}
 .astrava-intro svg{display:block;width:100%;height:auto;overflow:visible}
+.astrava-intro .ai-logoL{position:absolute;inset:0;transform-origin:50% 28.9%;will-change:transform}
+.astrava-intro .ai-logoL svg{position:absolute;left:0;top:0}
+.astrava-intro .ai-halo{opacity:0;will-change:opacity}
 .astrava-intro .ai-flare{position:absolute;left:50%;top:28.9%;width:240vw;height:3px;margin:-1.5px 0 0 -120vw;opacity:0;pointer-events:none;
   background:linear-gradient(90deg,rgba(80,150,255,0) 0%,rgba(80,150,255,.5) 30%,#e8f2ff 50%,rgba(80,150,255,.5) 70%,rgba(80,150,255,0) 100%);
   box-shadow:0 0 18px 4px rgba(70,140,255,.55);border-radius:50%}
 .astrava-intro .ai-ring{position:absolute;left:50%;top:28.9%;width:24vmin;height:24vmin;margin:-12vmin 0 0 -12vmin;border-radius:50%;opacity:0;
   border:2px solid rgba(160,205,255,.9);box-shadow:0 0 24px rgba(80,150,255,.8),inset 0 0 24px rgba(80,150,255,.6)}
 .astrava-intro .ai-flash{position:absolute;inset:0;background:radial-gradient(circle at 50% 42%,#fff 0%,#bcd6ff 35%,#2a5cff 100%);opacity:0;pointer-events:none}
-.astrava-intro .ai-logoAnim,.astrava-intro .ai-l,.astrava-intro .ai-rule{transform-box:fill-box;transform-origin:center}
+.astrava-intro .ai-l,.astrava-intro .ai-rule{transform-box:fill-box;transform-origin:center}
 .astrava-intro .ai-rule.l{transform-origin:right center}.astrava-intro .ai-rule.r{transform-origin:left center}
 .astrava-intro .ai-gate{position:absolute;inset:0;display:grid;place-items:center;align-content:center;gap:22px;
   font:600 13px/1 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;letter-spacing:.32em;text-transform:uppercase;color:#9fc3ff}
@@ -73,55 +76,64 @@ function wordmark(parent, text, cx, y, scale, gap, stroke) {
   return { row, letters, width: width * scale };
 }
 
+// Three stacked SVGs with the same viewBox, so the phone only repaints what changes:
+// halo (the one blur, painted once, then only its opacity moves), logo (trace + fill, scaled as a layer), text.
 function buildSvg(uid) {
-  const svg = el('svg', { viewBox: '0 0 640 450', 'aria-label': 'Astrava Studios', role: 'img' });
-  const defs = el('defs', {}, svg);
-  const fillG = el('linearGradient', { id: `${uid}f`, x1: 0, y1: 0, x2: 0, y2: 1 }, defs);
-  el('stop', { offset: 0, 'stop-color': '#ffffff' }, fillG); el('stop', { offset: 1, 'stop-color': '#c8dcff' }, fillG);
-  const shineG = el('linearGradient', { id: `${uid}s`, x1: 0, y1: 0, x2: 1, y2: 0 }, defs);
-  for (const [o, a] of [[0, 0], [0.5, 0.95], [1, 0]]) el('stop', { offset: o, 'stop-color': '#ffffff', 'stop-opacity': a }, shineG);
-  const glow = el('filter', { id: `${uid}g`, x: '-30%', y: '-30%', width: '160%', height: '160%' }, defs);
+  const mk = (cls) => el('svg', { viewBox: '0 0 640 450', class: cls, 'aria-hidden': 'true' });
+  const shineGrad = (defs, id) => {
+    const g = el('linearGradient', { id, x1: 0, y1: 0, x2: 1, y2: 0 }, defs);
+    for (const [o, a] of [[0, 0], [0.5, 0.95], [1, 0]]) el('stop', { offset: o, 'stop-color': '#ffffff', 'stop-opacity': a }, g);
+  };
+  const shineRect = (parent, grad) => el('rect', { x: -260, y: -20, width: 180, height: 490, fill: `url(#${grad})`, opacity: 0 }, parent);
+  const logoPos = 'translate(320 130) scale(0.8) translate(-289 -158)'; // logo centered at (320,130), 0.8x
+
+  // halo
+  const haloSvg = mk('ai-halo');
+  const hdefs = el('defs', {}, haloSvg);
+  const glow = el('filter', { id: `${uid}g`, x: '-30%', y: '-30%', width: '160%', height: '160%' }, hdefs);
   el('feGaussianBlur', { stdDeviation: 9 }, glow);
+  const hg = el('g', { transform: logoPos, filter: `url(#${uid}g)` }, haloSvg);
+  for (const d of [LOGO_A, LOGO_S]) el('path', { d, fill: '#3b86ff' }, hg);
+
+  // logo: light trace (two soft strokes stand in for a blur), then the fill, then its own shine
+  const logoSvg = mk('ai-logo');
+  const ldefs = el('defs', {}, logoSvg);
+  const fillG = el('linearGradient', { id: `${uid}f`, x1: 0, y1: 0, x2: 0, y2: 1 }, ldefs);
+  el('stop', { offset: 0, 'stop-color': '#ffffff' }, fillG); el('stop', { offset: 1, 'stop-color': '#c8dcff' }, fillG);
+  shineGrad(ldefs, `${uid}s1`);
+  const lclip = el('clipPath', { id: `${uid}lc` }, ldefs);
+  const logo = el('g', { transform: logoPos }, logoSvg);
+  const trace = el('g', {}, logo);
+  const traces = [];
+  for (const [stroke, width, op] of [['#3d8bff', 16, 0.22], ['#5aa4ff', 7, 0.55], ['#e6f1ff', 2.6, 1]]) {
+    for (const d of [LOGO_A, LOGO_S]) {
+      traces.push(el('path', { d, pathLength: 1, fill: 'none', stroke, 'stroke-width': width, opacity: op, 'stroke-linejoin': 'round', 'stroke-linecap': 'round', 'stroke-dasharray': '1 1', 'stroke-dashoffset': 1 }, trace));
+    }
+  }
+  const fill = el('g', { opacity: 0 }, logo);
+  for (const d of [LOGO_A, LOGO_S]) { el('path', { d, fill: `url(#${uid}f)` }, fill); el('path', { d }, lclip); }
+  const lshine = el('g', { 'clip-path': `url(#${uid}lc)` }, logo);
+  const shineL = shineRect(el('g', { transform: 'translate(289 158) scale(1.25) translate(-320 -130)' }, lshine), `${uid}s1`); // back in stage units
+
+  // text
+  const svg = mk('ai-text'); svg.setAttribute('aria-label', 'Astrava Studios'); svg.setAttribute('role', 'img'); svg.removeAttribute('aria-hidden');
+  const defs = el('defs', {}, svg);
+  shineGrad(defs, `${uid}s2`);
   const clipTxt = el('clipPath', { id: `${uid}c` }, defs);
   el('rect', { x: 0, y: 290, width: 640, height: 80 }, clipTxt); el('rect', { x: 0, y: 396, width: 640, height: 30 }, clipTxt);
   const mask = el('mask', { id: `${uid}m`, maskUnits: 'userSpaceOnUse', x: 0, y: 0, width: 640, height: 450 }, defs);
-
-  // logo: centered at (320,130), 0.8x
-  const logoPos = 'translate(320 130) scale(0.8) translate(-289 -158)';
-  const logo = el('g', { transform: logoPos }, svg);
-  const logoAnim = el('g', { class: 'ai-logoAnim' }, logo);
-  const halo = el('g', { filter: `url(#${uid}g)`, opacity: 0 }, logoAnim);
-  for (const d of [LOGO_A, LOGO_S]) el('path', { d, fill: '#3b86ff' }, halo);
-  const fill = el('g', { opacity: 0 }, logoAnim);
-  for (const d of [LOGO_A, LOGO_S]) el('path', { d, fill: `url(#${uid}f)` }, fill);
-  const trace = el('g', {}, logoAnim);
-  const traceGlow = el('g', { filter: `url(#${uid}g)` }, trace);
-  const traces = [];
-  for (const parent of [traceGlow, trace]) {
-    for (const d of [LOGO_A, LOGO_S]) {
-      traces.push(el('path', { d, pathLength: 1, fill: 'none', stroke: parent === trace ? '#e6f1ff' : '#4d9bff', 'stroke-width': parent === trace ? 3 : 8,
-        'stroke-linejoin': 'round', 'stroke-dasharray': '1 1', 'stroke-dashoffset': 1 }, parent));
-    }
-  }
-
-  // wordmark
   const text = el('g', { 'clip-path': `url(#${uid}c)` }, svg);
   const astrava = wordmark(text, 'ASTRAVA', 320, 290, 1, 26, 10);
   const studios = wordmark(text, 'STUDIOS', 320, 396, 0.37, 34, 11);
   const rules = [['l', 60, 320 - studios.width / 2 - 22], ['r', 320 + studios.width / 2 + 22, 580]].map(([side, x1, x2]) =>
     el('rect', { class: `ai-rule ${side}`, x: x1, y: 410, width: x2 - x1, height: 1.6, fill: '#6fa6ff', opacity: 0 }, svg));
   for (const g of studios.letters) g.firstChild.setAttribute('stroke', '#a9c9ff');
-
-  // shine sweep, masked to the logo + letters
-  const mlogo = el('g', { transform: logoPos }, mask);
-  for (const d of [LOGO_A, LOGO_S]) el('path', { d, fill: '#fff' }, mlogo);
   const mtext = text.cloneNode(true); mtext.removeAttribute('clip-path');
   for (const p of mtext.querySelectorAll('path')) { p.removeAttribute('stroke-dasharray'); p.removeAttribute('stroke-dashoffset'); p.setAttribute('stroke', '#fff'); }
   mask.appendChild(mtext);
-  const shineWrap = el('g', { mask: `url(#${uid}m)` }, svg);
-  const shine = el('rect', { x: -260, y: -20, width: 180, height: 490, fill: `url(#${uid}s)`, transform: 'skewX(-18)', opacity: 0 }, shineWrap);
+  const shineT = shineRect(el('g', { mask: `url(#${uid}m)` }, svg), `${uid}s2`);
 
-  return { svg, logoAnim, halo, fill, trace, traces, astrava, studios, rules, shine };
+  return { svg, logoSvg, haloSvg, fill, trace, traces, astrava, studios, rules, shines: [shineL, shineT] };
 }
 
 // ---------- starfield / warp / sparks on a canvas ----------
@@ -131,6 +143,7 @@ function starfield(canvas, reduced) {
   const N = mobile ? 260 : 460;
   const stars = Array.from({ length: N }, () => ({ x: Math.random() * 2 - 1, y: Math.random() * 2 - 1, z: Math.random() * 0.95 + 0.05 }));
   const sparks = [];
+  const BANDS = 6, bands = Array.from({ length: BANDS }, () => []);
   let w = 0, h = 0, dpr = 1;
   const resize = () => {
     dpr = Math.min(devicePixelRatio || 1, 1.5); w = canvas.clientWidth; h = canvas.clientHeight;
@@ -160,24 +173,44 @@ function starfield(canvas, reduced) {
     const cx = w / 2, f = Math.max(w, h) * 0.55, v = speedAt(t);
     const trail = Math.min(0.5, v * 0.09);
     ctx.lineCap = 'round';
+    // stars go into a few depth bands, one path and one stroke() per band (a stroke per star is too slow on phones)
+    for (const band of bands) band.length = 0;
     for (const s of stars) {
       s.z -= v * dt;
       if (s.z < 0.03) { s.z = 1; s.x = Math.random() * 2 - 1; s.y = Math.random() * 2 - 1; }
-      const px = cx + (s.x / s.z) * f, py = cy + (s.y / s.z) * f;
-      const z2 = Math.min(1.2, s.z + trail), qx = cx + (s.x / z2) * f, qy = cy + (s.y / z2) * f;
-      const b = Math.min(1, (1 - s.z) * 1.3 + 0.1);
-      ctx.strokeStyle = `rgba(${170 + 85 * b | 0},${200 + 55 * b | 0},255,${b})`;
-      ctx.lineWidth = (1 - s.z) * 2.2 + 0.4;
-      ctx.beginPath(); ctx.moveTo(qx, qy); ctx.lineTo(px + 0.01, py); ctx.stroke();
+      bands[Math.min(BANDS - 1, ((1 - s.z) * BANDS) | 0)].push(s);
     }
-    for (let i = sparks.length - 1; i >= 0; i--) {
-      const p = sparks[i]; p.age += dt;
-      if (p.age > p.life) { sparks.splice(i, 1); continue; }
-      const drag = Math.exp(-dt * 2.6); p.vx *= drag; p.vy *= drag; p.x += p.vx * dt; p.y += p.vy * dt;
-      const a = 1 - p.age / p.life;
-      ctx.strokeStyle = p.hue ? `rgba(90,160,255,${a})` : `rgba(255,255,255,${a})`;
+    bands.forEach((band, k) => {
+      if (!band.length) return;
+      const b = Math.min(1, ((k + 0.5) / BANDS) * 1.3 + 0.1);
+      ctx.strokeStyle = `rgba(${170 + 85 * b | 0},${200 + 55 * b | 0},255,${b})`;
+      ctx.lineWidth = ((k + 0.5) / BANDS) * 2.2 + 0.4;
+      ctx.beginPath();
+      for (const s of band) {
+        const z2 = Math.min(1.2, s.z + trail);
+        ctx.moveTo(cx + (s.x / z2) * f, cy + (s.y / z2) * f); ctx.lineTo(cx + (s.x / s.z) * f + 0.01, cy + (s.y / s.z) * f);
+      }
+      ctx.stroke();
+    });
+    if (sparks.length) {
+      const drag = Math.exp(-dt * 2.6);
+      for (let i = sparks.length - 1; i >= 0; i--) {
+        const p = sparks[i]; p.age += dt;
+        if (p.age > p.life) { sparks.splice(i, 1); continue; }
+        p.vx *= drag; p.vy *= drag; p.x += p.vx * dt; p.y += p.vy * dt;
+      }
       ctx.lineWidth = 1.6;
-      ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - p.vx * 0.03, p.y - p.vy * 0.03); ctx.stroke();
+      for (const hue of [0, 1]) for (let k = 0; k < 4; k++) { // 2 colors x 4 fade steps
+        ctx.beginPath(); let any = false;
+        for (const p of sparks) {
+          if (p.hue !== hue || Math.min(3, ((p.age / p.life) * 4) | 0) !== k) continue;
+          ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - p.vx * 0.03, p.y - p.vy * 0.03); any = true;
+        }
+        if (!any) continue;
+        const a = 1 - (k + 0.5) / 4;
+        ctx.strokeStyle = hue ? `rgba(90,160,255,${a})` : `rgba(255,255,255,${a})`;
+        ctx.stroke();
+      }
     }
   };
   return { draw, burst };
@@ -277,9 +310,49 @@ function score(ctx, t0, volume) {
   };
 }
 
+// The intro plays its score as ONE prerecorded buffer (astrava-intro.wav, rendered from score() below), so a phone's
+// audio thread only streams it and the boot work running alongside cannot make it crackle. Without the file the
+// score is rendered offline first, and only as a last resort synthesized live.
+// To regenerate the WAV after changing score(), in the dev server console:
+//   (await import('/src/astrava-intro/astravaIntro.js')).downloadScoreWav()
+const SOUND_URL = new URL('./astrava-intro.wav', import.meta.url).href;
+
+function loadTrack(actx, url) {
+  return fetch(url).then((r) => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
+    .then((ab) => new Promise((res, rej) => { const p = actx.decodeAudioData(ab, res, rej); if (p && p.then) p.then(res, rej); }))
+    .catch(() => renderScore(actx.sampleRate));
+}
+
+export function encodeWav(buf) {
+  const ch = buf.numberOfChannels, n = buf.length, out = new DataView(new ArrayBuffer(44 + n * ch * 2));
+  const str = (o, s) => { for (let i = 0; i < s.length; i++) out.setUint8(o + i, s.charCodeAt(i)); };
+  str(0, 'RIFF'); out.setUint32(4, 36 + n * ch * 2, true); str(8, 'WAVEfmt '); out.setUint32(16, 16, true); out.setUint16(20, 1, true);
+  out.setUint16(22, ch, true); out.setUint32(24, buf.sampleRate, true); out.setUint32(28, buf.sampleRate * ch * 2, true);
+  out.setUint16(32, ch * 2, true); out.setUint16(34, 16, true); str(36, 'data'); out.setUint32(40, n * ch * 2, true);
+  const data = Array.from({ length: ch }, (_, c) => buf.getChannelData(c));
+  for (let i = 0, o = 44; i < n; i++) for (let c = 0; c < ch; c++, o += 2) out.setInt16(o, Math.max(-1, Math.min(1, data[c][i])) * 32767, true);
+  return new Blob([out.buffer], { type: 'audio/wav' });
+}
+
+export async function downloadScoreWav(sampleRate = 44100) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(encodeWav(await renderScore(sampleRate))); a.download = 'astrava-intro.wav'; a.click();
+}
+
+export function renderScore(sampleRate) {
+  const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+  if (!OAC) return Promise.resolve(null);
+  try {
+    const oc = new OAC(2, Math.ceil((T.end + 3.6) * sampleRate), sampleRate);
+    score(oc, 0, 1);
+    const p = oc.startRendering();
+    if (p && p.then) return p.catch(() => null);
+    return new Promise((res) => { oc.oncomplete = (e) => res(e.renderedBuffer); }); // old WebKit: callback only
+  } catch { return Promise.resolve(null); }
+}
+
 // ---------- public API ----------
 export function playAstravaIntro(opts = {}) {
-  const { volume = 0.9, skippable = true, blockInput = true, tapText = 'Tap to start', mount = document.body, audio = true } = opts;
+  const { volume = 0.9, skippable = true, blockInput = true, tapText = 'Tap to start', mount = document.body, audio = true, onReveal } = opts;
   const reduced = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
   return new Promise((resolve) => {
     if (!document.getElementById('astrava-intro-css')) {
@@ -294,7 +367,9 @@ export function playAstravaIntro(opts = {}) {
     const shakeEl = div('ai-shake', root);
     const stage = div('ai-stage', shakeEl);
     const uid = 'ai' + Math.random().toString(36).slice(2, 7);
-    const parts = buildSvg(uid); stage.appendChild(parts.svg);
+    const parts = buildSvg(uid);
+    stage.appendChild(parts.svg);
+    const logoL = div('ai-logoL', stage); logoL.appendChild(parts.haloSvg); logoL.appendChild(parts.logoSvg);
     const ring = div('ai-ring', stage), flare = div('ai-flare', stage);
     const flash = div('ai-flash', root);
     stage.style.visibility = 'hidden';
@@ -302,8 +377,9 @@ export function playAstravaIntro(opts = {}) {
     const AC = window.AudioContext || window.webkitAudioContext;
     let actx = null;
     try { if (audio && AC) actx = new AC(); } catch { actx = null; }
+    const track = actx ? loadTrack(actx, opts.soundUrl || SOUND_URL) : Promise.resolve(null);
     const anims = [];
-    let started = false, finished = false, t0 = 0, raf = 0, snd = null, gate = null, sf = null, skipAt = Infinity;
+    let started = false, starting = false, finished = false, t0 = 0, raf = 0, out = null, live = null, gate = null, sf = null, skipAt = Infinity;
 
     const onInput = (e) => {
       if (blockInput) e.stopImmediatePropagation(); // keep the game from reacting (and starting its own music) underneath
@@ -320,31 +396,41 @@ export function playAstravaIntro(opts = {}) {
       if (actx.state === 'running') start();
     };
 
+    let lead = 0; // seconds the visuals wait so they land with the sound after the device's output latency
     const a = (node, frames, delay, duration, extra = {}) => {
-      const an = node.animate(frames, { delay: delay * 1000, duration: duration * 1000, fill: 'both', easing: 'cubic-bezier(.2,.7,.2,1)', ...extra });
+      const an = node.animate(frames, { delay: (delay + lead) * 1000, duration: duration * 1000, fill: 'both', easing: 'cubic-bezier(.2,.7,.2,1)', ...extra });
       anims.push(an); return an;
     };
 
-    function start() {
-      if (started || finished) return;
-      started = true;
+    async function start() {
+      if (started || starting || finished) return;
+      starting = true;
       if (gate) { gate.remove(); gate = null; }
+      const buf = actx && actx.state === 'running' ? await track : null;
+      if (finished) return;
+      started = true;
+      if (actx && actx.state === 'running') {
+        out = actx.createGain(); out.gain.value = volume; out.connect(actx.destination);
+        if (buf) { const src = actx.createBufferSource(); src.buffer = buf; src.connect(out); src.start(actx.currentTime + 0.02); }
+        else live = score(actx, actx.currentTime + 0.02, volume); // no offline rendering: synthesize live
+        lead = 0.02 + Math.min(0.25, (actx.outputLatency || 0) + (actx.baseLatency || 0));
+      }
       stage.style.visibility = '';
-      t0 = performance.now(); skipAt = t0 + 600;
-      if (actx && actx.state === 'running') snd = score(actx, actx.currentTime + 0.03, volume);
+      t0 = performance.now() + lead * 1000; skipAt = t0 + 600;
       sf = starfield(canvas, reduced);
-      const { logoAnim, halo, fill, trace, traces, astrava, studios, rules, shine } = parts;
+      const { fill, trace, traces, astrava, studios, rules, shines, haloSvg } = parts;
       const I = T.impact;
       a(canvas, [{ opacity: 0 }, { opacity: 1 }], 0, 0.8, { easing: 'ease-out' });
       // trace the outline in light, then let it go when the fill lands
       traces.forEach((p, i) => a(p, [{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], T.trace + (i % 2) * 0.18, I - T.trace - 0.25, { easing: 'cubic-bezier(.45,0,.3,1)' }));
       a(trace, [{ opacity: 0.0 }, { opacity: 1, offset: 0.15 }, { opacity: 1 }], T.trace, I - T.trace, { easing: 'linear' });
       a(trace, [{ opacity: 1 }, { opacity: 0 }], I, 0.7, { fill: 'forwards' });
-      a(logoAnim, [{ transform: 'scale(.94)' }, { transform: 'scale(1)' }], T.trace, I - T.trace, { easing: 'ease-in' });
-      a(logoAnim, [{ transform: 'scale(1.16)' }, { transform: 'scale(1)' }], I, 0.75, { fill: 'forwards' });
-      a(logoAnim, [{ transform: 'scale(1)' }, { transform: 'scale(1.035)' }], I + 0.75, T.out - I - 0.75, { easing: 'linear', fill: 'forwards' });
+      // the logo layer scales on the compositor (its content stays still after the impact)
+      a(logoL, [{ transform: 'scale(.94)' }, { transform: 'scale(1)' }], T.trace, I - T.trace, { easing: 'ease-in' });
+      a(logoL, [{ transform: 'scale(1.16)' }, { transform: 'scale(1)' }], I, 0.75, { fill: 'forwards' });
+      a(logoL, [{ transform: 'scale(1)' }, { transform: 'scale(1.035)' }], I + 0.75, T.out - I - 0.75, { easing: 'linear', fill: 'forwards' });
       a(fill, [{ opacity: 0 }, { opacity: 1 }], I, 0.06, { easing: 'linear' });
-      a(halo, [{ opacity: 0 }, { opacity: 1 }, { opacity: 0.45 }], I, 1.6);
+      a(haloSvg, [{ opacity: 0 }, { opacity: 1 }, { opacity: 0.45 }], I, 1.6);
       a(bg, [{ opacity: 0 }, { opacity: 1 }, { opacity: 0.7 }], I, 2.2);
       a(flash, [{ opacity: 0 }, { opacity: 0.85, offset: 0.06 }, { opacity: 0 }], I - 0.03, 0.75, { easing: 'ease-out' });
       a(ring, [{ opacity: 0.9, transform: 'scale(.2)' }, { opacity: 0, transform: 'scale(7)' }], I, 1.1, { easing: 'cubic-bezier(.1,.6,.3,1)' });
@@ -361,20 +447,24 @@ export function playAstravaIntro(opts = {}) {
         a(g, [{ opacity: 0, transform: `translateX(${(i - 3) * 30}px)` }, { opacity: 1, transform: 'translateX(0)' }], T.studios, 0.9, { easing: 'cubic-bezier(.15,.8,.2,1)' });
       });
       rules.forEach((r) => a(r, [{ opacity: 0, transform: 'scaleX(0)' }, { opacity: 1, transform: 'scaleX(1)' }], T.studios + 0.2, 0.8));
-      a(shine, [{ opacity: 1, transform: 'skewX(-18deg) translateX(0px)' }, { opacity: 1, transform: 'skewX(-18deg) translateX(1100px)' }], T.shine, 0.95, { easing: 'cubic-bezier(.4,0,.2,1)' });
+      for (const sh of shines) a(sh, [{ opacity: 1, transform: 'skewX(-18deg) translateX(0px)' }, { opacity: 1, transform: 'skewX(-18deg) translateX(1100px)' }], T.shine, 0.95, { easing: 'cubic-bezier(.4,0,.2,1)' });
       // out
       a(stage, [{ opacity: 1, transform: 'scale(1)' }, { opacity: 0, transform: 'scale(1.06)' }], T.out, T.end - T.out, { easing: 'ease-in' });
       a(bg, [{ opacity: 0.7 }, { opacity: 0 }], T.out, T.end - T.out, { easing: 'ease-in', fill: 'forwards' });
       a(canvas, [{ opacity: 1 }, { opacity: 0 }], T.out, T.end - T.out, { easing: 'ease-in', fill: 'forwards' });
 
+      // logo center on screen, measured once (and again on resize), not every frame
+      let cy = 0, cx = 0;
+      const measure = () => { const r = stage.getBoundingClientRect(), rr = root.getBoundingClientRect(); cy = r.top + r.height * (130 / 450) - rr.top; cx = rr.width / 2; };
+      measure(); addEventListener('resize', measure);
       let burstDone = false;
       const tick = (now) => {
         if (finished) return;
         const t = (now - t0) / 1000;
-        const r = stage.getBoundingClientRect(), cy = r.top + r.height * (130 / 450) - root.getBoundingClientRect().top;
-        if (!burstDone && t >= I) { burstDone = true; sf.burst(root.clientWidth / 2, cy); }
-        sf.draw(t, t < I ? root.clientHeight / 2 + (cy - root.clientHeight / 2) * Math.min(1, t / I) : cy);
-        if (t >= T.end) return finish(0.5, true);
+        if (!burstDone && t >= I) { burstDone = true; sf.burst(cx, cy); }
+        const h = root.clientHeight;
+        sf.draw(t, t < I ? h / 2 + (cy - h / 2) * Math.min(1, Math.max(0, t) / I) : cy);
+        if (t >= T.end) { removeEventListener('resize', measure); return finish(0.5, true); }
         raf = requestAnimationFrame(tick);
       };
       raf = requestAnimationFrame(tick);
@@ -385,9 +475,13 @@ export function playAstravaIntro(opts = {}) {
       if (finished) return; finished = true;
       cancelAnimationFrame(raf);
       for (const ev of EV) window.removeEventListener(ev, onInput, { capture: true });
-      if (snd && !natural) snd.fade(fadeSec);
+      if (!natural) {
+        if (live) live.fade(fadeSec);
+        if (out) { const n = actx.currentTime; out.gain.cancelScheduledValues(n); out.gain.setValueAtTime(out.gain.value, n); out.gain.linearRampToValueAtTime(0, n + fadeSec); }
+      }
       const tail = natural ? 3.5 : fadeSec + 0.2;
       if (actx) setTimeout(() => { try { actx.close(); } catch {} }, tail * 1000);
+      if (onReveal) try { onReveal(); } catch {} // the game can start drawing again as the cover fades off
       const done = () => { for (const an of anims) an.cancel(); root.remove(); resolve(); };
       if (fadeSec) root.animate([{ opacity: 1 }, { opacity: 0 }], { duration: fadeSec * 1000, fill: 'forwards' }).onfinish = done;
       else done();
@@ -398,7 +492,7 @@ export function playAstravaIntro(opts = {}) {
     if (actx.state === 'running') { start(); return; }
     const p = actx.resume(); if (p && p.then) p.then(() => { if (actx.state === 'running') start(); }, () => {});
     setTimeout(() => {
-      if (started || finished) return;
+      if (started || starting || finished) return;
       if (actx.state === 'running') return start();
       gate = document.createElement('div'); gate.className = 'ai-gate';
       const g = el('svg', { viewBox: '40 0 500 316' }, gate);
