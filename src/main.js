@@ -985,7 +985,8 @@ let camSnap = true; const camLook = new THREE.Vector3(), _ct = new THREE.Vector3
 function updateCamera(dt) {
   const portrait = innerWidth < innerHeight;
   let target, off;
-  if (mode === 'menu' && !L && menuScene.built) {
+  if (mode === 'menu' && !L && menuScene.built && menuScene.V.focus) { target = _ct.copy(menuScene.V.stallAt); off = _co.set(1.4, 1.2, 4.2); }
+  else if (mode === 'menu' && !L && menuScene.built) {
     target = portrait ? _ct.set(-0.6, 0.4, -0.6) : _ct.set(-0.2, 1.1, -0.9);
     off = portrait ? _co.set(0, 4.8, 13.5) : _co.set(0, 2.5, 8.8);
   }
@@ -1155,7 +1156,17 @@ const marketView = createMarketView({
   shake: (v) => { shake = Math.max(shake, v); },
   onLeave: (where) => { if (where === 'next') beginNight(); else toMenu(); },
 });
-$('marketBtn').onclick = () => { hide('menu'); marketView.enter('menu'); };
+// the Market is the merchant's stall in the menu scene (no button): click the stall or its sign
+function openStall() {
+  if (mode !== 'menu' || menuScene.V.focus) return;
+  sfx.click(); menuScene.V.focus = true; menuScene.hover(false); $('menu').style.cursor = ''; hide('menu');
+  setTimeout(() => { if (mode === 'menu') marketView.enter('menu'); }, 420); // the camera leans in first
+}
+const onStall = (e) => !(e.target.closest && e.target.closest('button')) && menuScene.pick(e.clientX, e.clientY);
+$('menu').addEventListener('pointermove', (e) => { if (e.pointerType !== 'mouse') return; const hot = onStall(e); if (hot !== menuScene.V.hot) { menuScene.hover(hot); $('menu').style.cursor = hot ? 'pointer' : ''; } });
+$('menu').addEventListener('click', (e) => { if (onStall(e)) openStall(); });
+$('stallTag').onclick = openStall;
+$('stallTag').onpointerenter = () => menuScene.hover(true); $('stallTag').onpointerleave = () => menuScene.hover(false);
 const hideoutView = createHideoutView({
   $, show, hide, icon, t, setText: setTextOf, lanternName, decorName, itemName, save, writeSave, sfx, M, toon, AS, buildTreasure, buildFurniture,
   scene, hemi, sun, moon, lantern, nestLight, candles, get player() { return player; },
@@ -1163,7 +1174,8 @@ const hideoutView = createHideoutView({
   setMode: (m) => { mode = m; S = null; MO = null; ['menu', 'hud', 'result', 'nightCard', 'shop', 'how', 'settings', 'pause'].forEach(hide); camSnap = Q.has('demo'); },
 });
 const menuScene = createMenuScene({
-  M, toon, AS, buildNest, buildTreasure, buildFurniture, scene, hemi, sun, moon, lantern, nestLight, candles, get player() { return player; },
+  M, toon, AS, buildNest, buildTreasure, buildFurniture, buildMerchant, GLOW, camera, canvas: renderer.domElement, tag: () => $('stallTag'),
+  scene, hemi, sun, moon, lantern, nestLight, candles, get player() { return player; },
   clearWorld: () => { clearWorld(); hideoutView.leaveScene(); return world; },
   snore: () => { if (!document.hidden) sfx.snore(2.2, undefined, undefined, 0.4); },
 });
