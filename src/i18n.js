@@ -9,6 +9,10 @@ export const LANGS = [
   { id: 'tr', name: 'Türkçe' },
   { id: 'ru', name: 'Русский' },
   { id: 'es', name: 'Español' },
+  { id: 'de', name: 'Deutsch' },
+  { id: 'fr', name: 'Français' },
+  { id: 'it', name: 'Italiano' },
+  { id: 'pt', name: 'Português' },
   { id: 'az', name: 'Azərbaycanca' },
 ];
 
@@ -376,7 +380,7 @@ const DATA = {
 };
 
 // Other sections use English until their translations are ready.
-for (const id of ['es', 'az']) {
+for (const id of ['es', 'de', 'fr', 'it', 'pt', 'az']) {
   D[id] = CORE_TRANSLATIONS[id];
   DATA[id] = DATA.en;
   MARKET_UI[id] = MARKET_UI.en; MARKET_DATA[id] = MARKET_DATA.en;
@@ -388,7 +392,16 @@ export const getLang = () => lang;
 export function setLang(l) { lang = D[l] ? l : 'en'; if (typeof document !== 'undefined') document.documentElement.lang = lang === 'zh' ? 'zh-CN' : lang; }
 export function detectLang() {
   const n = (typeof navigator !== 'undefined' && navigator.language || 'en').toLowerCase();
-  return n.startsWith('es') ? 'es' : n.startsWith('az') ? 'az' : n.startsWith('tr') ? 'tr' : n.startsWith('zh') ? 'zh' : n.startsWith('ru') ? 'ru' : 'en';
+  return n.startsWith('es') ? 'es'
+    : n.startsWith('de') ? 'de'
+    : n.startsWith('fr') ? 'fr'
+    : n.startsWith('it') ? 'it'
+    : n.startsWith('pt') ? 'pt'
+    : n.startsWith('az') ? 'az'
+    : n.startsWith('tr') ? 'tr'
+    : n.startsWith('zh') ? 'zh'
+    : n.startsWith('ru') ? 'ru'
+    : 'en';
 }
 const fill = (s, p) => s.replace(/\{(\w+)\}/g, (_, k) => (p[k] ?? ''));
 export function t(key, p = {}) { return fill(D[lang][key] ?? MARKET_UI[lang][key] ?? HIDE_UI[lang][key] ?? D.en[key] ?? MARKET_UI.en[key] ?? HIDE_UI.en[key] ?? key, p); }
