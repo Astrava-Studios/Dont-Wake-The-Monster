@@ -408,16 +408,16 @@ export class Sfx {
   lullaby() { if (!this.ok) return; this.duck(0.15, 1.6); [72, 76, 79, 76, 74, 71, 72].forEach((n, i) => this.bell(NOTE(n + 12), this.ctx.currentTime + i * 0.2, 0.1, this.sfxBus)); }
 
   // ---------- monster ----------
-  snore(len = 1.8, x, z) {
-    if (!this.ok) return; if (this.sample('snore', { x, z, vol: 0.7 })) return;
+  snore(len = 1.8, x, z, k = 1) { // k: loudness (the menu plays it soft)
+    if (!this.ok) return; if (this.sample('snore', { x, z, vol: 0.7 * k })) return;
     const c = this.ctx, t = c.currentTime, out = this.out({ x, z });
     const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(46, t); o.frequency.linearRampToValueAtTime(60, t + len * 0.6); o.frequency.linearRampToValueAtTime(42, t + len);
     const f = c.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 320; f.Q.value = 1.2;
-    const g = c.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.2, t + len * 0.5); g.gain.linearRampToValueAtTime(0.0001, t + len);
-    const lfo = c.createOscillator(); lfo.frequency.value = 23; const lg = c.createGain(); lg.gain.value = 0.12; lfo.connect(lg); lg.connect(g.gain);
+    const g = c.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.2 * k, t + len * 0.5); g.gain.linearRampToValueAtTime(0.0001, t + len);
+    const lfo = c.createOscillator(); lfo.frequency.value = 23; const lg = c.createGain(); lg.gain.value = 0.12 * k; lfo.connect(lg); lg.connect(g.gain);
     o.connect(f); f.connect(g); g.connect(out); o.start(t); o.stop(t + len + 0.1); lfo.start(t); lfo.stop(t + len + 0.1);
-    this.noise(len, { freq: 600, q: 0.7, vol: 0.06, att: len * 0.5, x, z });
-    this.noise(0.9, { type: 'bandpass', freq: 500, slide: 1400, q: 1, vol: 0.03, att: 0.5, delay: len + 0.4, x, z }); // whistle on the out-breath
+    this.noise(len, { freq: 600, q: 0.7, vol: 0.06 * k, att: len * 0.5, x, z });
+    this.noise(0.9, { type: 'bandpass', freq: 500, slide: 1400, q: 1, vol: 0.03 * k, att: 0.5, delay: len + 0.4, x, z }); // whistle on the out-breath
   }
   hmm(x, z) { this.tone(130, 0.5, { vol: 0.22, slide: 185, lp: 600, x, z }); this.tone(185, 0.4, { vol: 0.16, slide: 145, lp: 600, delay: 0.42, x, z }); }
   roar(x, z) {
